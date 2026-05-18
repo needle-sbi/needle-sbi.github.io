@@ -1,0 +1,83 @@
+- name: "Dr. Stephen Jiggins"
+  title: "DESY Principal Investigator"
+  role: "Machine Learning Research Lead"
+  description: "Leading the machine learning research & development team, and NEEDLE software stack development. Specialise in deep learning for particle physics, Monte Carlo simulations, large-scale distributed systems, and numerical mathematics."
+  affiliation: "DESY | ATLAS Collaboration"
+  image: "./assets/images/team/sjiggins.jpg"
+
+- name: "Prof. Ulrich Husemann"
+  title: "..."
+  role: "..."
+  description: "..."
+  affiliation: "KIT & DESY | CMS Collaboration"
+  image: "https://via.placeholder.com/300x300/a855f7/ffffff?text=MR"
+
+- name: "PD Dr. Judith Katzy"
+  title: "..."
+  role: "..."
+  description: "..."
+  affiliation: "DESY | ATLAS Collaboration"
+  image: "https://via.placeholder.com/300x300/00d4ff/ffffff?text=AP"
+
+- name: "Prof. Felix Kahlhoefer"
+  title: "..."
+  role: "..."
+  description: "..."
+  affiliation: "KIT | ..."
+  image: "https://via.placeholder.com/300x300/ff6b35/ffffff?text=JK"
+
+- name: "Dr. Levi Evans"
+  title: "..."
+  role: "..."
+  description: ".."
+  affiliation: "DESY | ATLAS Collaboration"
+  image: "https://via.placeholder.com/300x300/58a6ff/ffffff?text=EV"
+
+- name: "Kylian Schmidt"
+  title: "PhD Student"
+  role: "Software Engineer"
+  description: >
+    Part of the Machine Learning and Software Development Team. Working 
+    on the main NEEDLE orchestration tool.
+  affiliation: "KIT | CMS Collaboration"
+  image: "./assets/images/team/kylian.jpg"
+
+- name: "Nino Kovacic"
+  title: "PhD Student"
+  role: "Machine Learning in Physics Researcher"
+  description: "Interested in, and working on, applications of Machine Learning within the field of high energy physics, primarily regarding NSBI, and NLRE in particuar. Part of the Development Team."
+  affiliation: "University of Zagreb | ALICE Collaboration"
+  image: "assets/images/team/nkovacic_biopic_placeholder.png"
+
+- name: "Stefan Katsarov"
+  title: "PhD Student"
+  role: "..."
+  description: "Developing Neural Simulation-Based Inference (NSBI) methods, with a primary focus on Neural Likelihood Ratio Estimation (NLRE), to probe the CP structure of top-associated Higgs production at the ATLAS experiment."
+  affiliation: "DESY | ATLAS Collaboration"
+  image: "assets/images/team/Stefan.png"
+
+- name: "Dr. Lena Rathmann"
+  title: "..."
+  role: "..."
+  description: "..."
+  affiliation: "KIT | ..."
+  image: "https://via.placeholder.com/300x300/00d4ff/ffffff?text=YT"
+
+- name: "Niklas Reus"
+  title: "..."
+  role: "..."
+  description: "..."
+  affiliation: "KIT | ..."
+  image: "https://via.placeholder.com/300x300/ff6b35/ffffff?text=RG"
+
+- name: "Nicolo Trevisani"
+  title: "Post-Doctoral Researcher"
+  role: ""
+  description: >
+    I am a postdoc researcher at the Karlsruhe Institute of Technology. I am part of the CMS
+     collaboration at CERN, where my research line is centered around the study of the Higgs
+     boson and the reconstruction and calibration of muons. I try to get the best out of the
+     available data using machine learning, keeping a tight bond with physics. 
+  affiliation: "KIT | CMS Collaboration"
+  image: "assets/images/team/nicolo.png"
+

@@ -1,0 +1,34 @@
+<nav class="navbar">
+  <div class="nav-container">
+    <a href="{{ '/' | relative_url }}" class="nav-logo">
+      <img src="{{ './assets/images/needle-logo-v2-transparent.png' | relative_url }}" 
+	   alt="NEEDLE Logo" 
+	   class="nav-logo-image">
+      <span class="nav-logo-text">NEEDLE</span>
+    </a>
+    
+    <ul class="nav-menu">
+      <li><a href="{{ '/' | relative_url }}" class="nav-link">Home</a></li>
+      <li><a href="{{ '/team' | relative_url }}" class="nav-link">Team</a></li>
+      <!-- Dropdown for Project -->
+      <li class="nav-dropdown">
+        <a href="{{ '/project' | relative_url }}" class="nav-link">Project</a>
+        <ul class="dropdown-menu">
+          <li><a href="{{ '/project/dag' | relative_url }}" class="dropdown-link">DAG Workflow</a></li>
+          <li><a href="{{ '/project/diffusion' | relative_url }}" class="dropdown-link">Diffusion/Flow Models</a></li>
+          <li><a href="{{ '/project/surrogates' | relative_url }}" class="dropdown-link">Neural Surrogates</a></li>
+          <li><a href="{{ '/project/inference' | relative_url }}" class="dropdown-link">Real-Time Inference</a></li>
+        </ul>
+      </li>
+      <li>
+	<button id="particle-toggle" class="theme-toggle" aria-label="Toggle particles" title="Toggle particle effect">
+	  ⚛️
+	</button>
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+          🌙
+        </button>
+      </li>
+    </ul>
+  </div>
+</nav>
+

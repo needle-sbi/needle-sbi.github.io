@@ -1,0 +1,38 @@
+title: NEEDLE
+email: stephen.pw.jiggins@gmail.com
+description: >-
+  NEEDLE - Neural Simulation-based Inference using Generative AI methods for Particle Physics at the LHC.
+
+baseurl: "/NEEDLE-Public-Website" # the subpath of your site, e.g. /blog
+url: "https://sjiggins.github.io/" # the base hostname & protocol for your site
+
+# Build settings
+markdown: kramdown
+theme: minima
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+# Collections
+collections:
+  team:
+    output: true
+    permalink: /team/:name/
+
+# Exclude from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+  - README.md
+  - QUICKSTART.md          # Solver Liquid syntax conflict, where .md example code is read by jekyll.
+  - DEPLOYMENT.md          # Solver Liquid syntax conflict, where .md example code is read by jekyll.
+  - CUSTOMIZATION.md       # Solver Liquid syntax conflict, where .md example code is read by jekyll.
+  - STRUCTURE.md           # Solver Liquid syntax conflict, where .md example code is read by jekyll. (this is the problematic one!)
+  - DESIGN.md              # Solver Liquid syntax conflict, where .md example code is read by jekyll.
+  - GETTING_STARTED.md     # Solver Liquid syntax conflict, where .md example code is read by jekyll.
+  - LICENSE            
