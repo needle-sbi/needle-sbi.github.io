@@ -3,12 +3,11 @@ email: stephen.pw.jiggins@gmail.com
 description: >-
   NEEDLE - Neural Simulation-based Inference using Generative AI methods for Particle Physics at the LHC.
 
-baseurl: "/NEEDLE-Public-Website" # the subpath of your site, e.g. /blog
-url: "https://sjiggins.github.io/" # the base hostname & protocol for your site
+baseurl: "" # org/user pages deploy at the domain root
+url: "https://needle-sbi.github.io"
 
 # Build settings
 markdown: kramdown
-theme: minima
 plugins:
   - jekyll-feed
   - jekyll-seo-tag
