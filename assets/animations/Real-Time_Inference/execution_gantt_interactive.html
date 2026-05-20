@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NEEDLE – Execution Gantt</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 24px 20px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .subtitle { font-size: 0.85rem; color: #8b949e; margin-bottom: 20px; text-align: center; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    width: 100%;
+    max-width: 1160px;
+  }
+  .panel {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .panel h2 { font-size: 0.95rem; margin-bottom: 10px; }
+  canvas { width: 100%; display: block; border-radius: 4px; }
+  .controls {
+    display: flex; gap: 10px; align-items: center;
+    margin: 12px 0; flex-wrap: wrap; justify-content: center;
+  }
+  button {
+    background: #21262d; border: 1px solid #30363d;
+    color: #c9d1d9; border-radius: 6px;
+    padding: 6px 16px; font-size: 0.82rem; cursor: pointer;
+  }
+  button:hover { background: #30363d; }
+  button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  label { font-size: 0.78rem; color: #8b949e; }
+  input[type=range] { width: 90px; accent-color: #1f6feb; cursor: pointer; }
+  .totals {
+    display: flex; gap: 30px; flex-wrap: wrap;
+    justify-content: center; margin-top: 14px;
+    font-size: 0.8rem; color: #8b949e;
+  }
+  .total-item { text-align: center; }
+  .total-val { font-size: 1.1rem; font-weight: 700; display: block; }
+  .legend {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    justify-content: center; margin-top: 14px;
+    font-size: 0.75rem; color: #8b949e;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 12px; height: 6px; border-radius: 2px; }
+  .tooltip {
+    position: fixed;
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    pointer-events: none;
+    display: none;
+    z-index: 100;
+    color: #e6edf3;
+    max-width: 200px;
+  }
+  /* ── Theme variables ──────────────────────────────────────── */
+  :root {
+    --bg:#0d1117; --bg-p:#161b22; --bdr:#30363d;
+    --tx:#e6edf3; --tx2:#8b949e; --bbg:#21262d;
+    --cvbg:#0d1117; --idle:#2c2c2c; --edge:#30363d; --dim:#8b949e; --grid:#1a2030;
+  }
+  body.light {
+    --bg:#f6f8fa; --bg-p:#ffffff; --bdr:#d0d7de;
+    --tx:#24292f; --tx2:#57606a; --bbg:#eaeef2;
+    --cvbg:#f6f8fa; --idle:#d0d7de; --edge:#d0d7de; --dim:#57606a; --grid:#e2e5e9;
+  }
+  body { background:var(--bg); color:var(--tx); }
+  h1   { color:var(--tx); }
+  .panel,.cell { background:var(--bg-p); border-color:var(--bdr); }
+  .subtitle,.desc,.step-info,.stat-bar,.eff-label,.progress-label,
+  label,.legend,.legend-item,.totals,.total-item,.col-hdr { color:var(--tx2); }
+  .stat-val { color:var(--tx); }
+  button:not(.active) { background:var(--bbg); border-color:var(--bdr); color:var(--tx); }
+  button:not(.active):hover { background:var(--bdr); }
+  .tooltip { background:var(--bbg) !important; border-color:var(--bdr) !important;
+              color:var(--tx) !important; }
+</style>
+</head>
+<body>
+<h1>NEEDLE – Execution Timeline (Gantt)</h1>
+<p class="subtitle">
+  Wall-clock time comparison for all 3 execution strategies.<br>
+  Each bar = one forward-pass. Hover for details. Dotted line = playhead.
+</p>
+
+<div class="controls">
+  <button id="btnPlay">▶ Play</button>
+  <button id="btnReset">↺ Reset</button>
+  <button id="btnTheme">☀ Light</button>
+  <label>Speed <input type="range" id="speedSlider" min="1" max="12" value="4" step="1"></label>
+</div>
+
+<div class="grid" id="panelGrid"></div>
+
+<div class="totals" id="totalsRow"></div>
+
+<div class="legend" id="legend"></div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const TASKS   = [{"strategy": "sequential", "node": "fold_A0", "t_start": 0.0, "t_end": 1.0, "type": "fold", "label": "F\u2080\u2070"}, {"strategy": "sequential", "node": "fold_A1", "t_start": 1.0, "t_end": 2.0, "type": "fold", "label": "F\u2080\u00b9"}, {"strategy": "sequential", "node": "fold_A2", "t_start": 2.0, "t_end": 3.0, "type": "fold", "label": "F\u2080\u00b2"}, {"strategy": "sequential", "node": "fold_B0", "t_start": 3.0, "t_end": 4.0, "type": "fold", "label": "F\u2081\u2070"}, {"strategy": "sequential", "node": "fold_B1", "t_start": 4.0, "t_end": 5.0, "type": "fold", "label": "F\u2081\u00b9"}, {"strategy": "sequential", "node": "fold_B2", "t_start": 5.0, "t_end": 6.0, "type": "fold", "label": "F\u2081\u00b2"}, {"strategy": "sequential", "node": "ens_0", "t_start": 6.0, "t_end": 6.2, "type": "ensemble", "label": "Ens\u2080"}, {"strategy": "sequential", "node": "ens_1", "t_start": 6.2, "t_end": 6.4, "type": "ensemble", "label": "Ens\u2081"}, {"strategy": "sequential", "node": "sys_nom", "t_start": 6.4, "t_end": 6.550000000000001, "type": "systematic", "label": "Sys"}, {"strategy": "sequential", "node": "est_A", "t_start": 6.550000000000001, "t_end": 6.65, "type": "estimator", "label": "Est"}, {"strategy": "sequential", "node": "root", "t_start": 6.65, "t_end": 6.7, "type": "main", "label": "Root"}, {"strategy": "parallel", "node": "fold_A0", "t_start": 0.0, "t_end": 1.0, "type": "fold", "label": "F\u2080\u2070"}, {"strategy": "parallel", "node": "fold_A1", "t_start": 0.0, "t_end": 1.0, "type": "fold", "label": "F\u2080\u00b9"}, {"strategy": "parallel", "node": "fold_A2", "t_start": 0.0, "t_end": 1.0, "type": "fold", "label": "F\u2080\u00b2"}, {"strategy": "parallel", "node": "fold_B0", "t_start": 0.0, "t_end": 1.0, "type": "fold", "label": "F\u2081\u2070"}, {"strategy": "parallel", "node": "fold_B1", "t_start": 0.0, "t_end": 1.0, "type": "fold", "label": "F\u2081\u00b9"}, {"strategy": "parallel", "node": "fold_B2", "t_start": 0.0, "t_end": 1.0, "type": "fold", "label": "F\u2081\u00b2"}, {"strategy": "parallel", "node": "ens_0", "t_start": 1.0, "t_end": 1.2, "type": "ensemble", "label": "Ens\u2080"}, {"strategy": "parallel", "node": "ens_1", "t_start": 1.0, "t_end": 1.2, "type": "ensemble", "label": "Ens\u2081"}, {"strategy": "parallel", "node": "sys_nom", "t_start": 1.2, "t_end": 1.3499999999999999, "type": "systematic", "label": "Sys"}, {"strategy": "parallel", "node": "est_A", "t_start": 1.3499999999999999, "t_end": 1.45, "type": "estimator", "label": "Est"}, {"strategy": "parallel", "node": "root", "t_start": 1.45, "t_end": 1.5, "type": "main", "label": "Root"}, {"strategy": "vectorized", "node": "fold_A0", "t_start": 0.0, "t_end": 0.55, "type": "fold", "label": "F\u2080\u2070", "vmap": true}, {"strategy": "vectorized", "node": "fold_A1", "t_start": 0.0, "t_end": 0.55, "type": "fold", "label": "F\u2080\u00b9", "vmap": true}, {"strategy": "vectorized", "node": "fold_A2", "t_start": 0.0, "t_end": 0.55, "type": "fold", "label": "F\u2080\u00b2", "vmap": true}, {"strategy": "vectorized", "node": "fold_B0", "t_start": 0.0, "t_end": 0.55, "type": "fold", "label": "F\u2081\u2070", "vmap": true}, {"strategy": "vectorized", "node": "fold_B1", "t_start": 0.0, "t_end": 0.55, "type": "fold", "label": "F\u2081\u00b9", "vmap": true}, {"strategy": "vectorized", "node": "fold_B2", "t_start": 0.0, "t_end": 0.55, "type": "fold", "label": "F\u2081\u00b2", "vmap": true}, {"strategy": "vectorized", "node": "ens_0", "t_start": 0.55, "t_end": 0.75, "type": "ensemble", "label": "Ens\u2080", "vmap": false}, {"strategy": "vectorized", "node": "ens_1", "t_start": 0.55, "t_end": 0.75, "type": "ensemble", "label": "Ens\u2081", "vmap": false}, {"strategy": "vectorized", "node": "sys_nom", "t_start": 0.75, "t_end": 0.9, "type": "systematic", "label": "Sys", "vmap": false}, {"strategy": "vectorized", "node": "est_A", "t_start": 0.9, "t_end": 1.0, "type": "estimator", "label": "Est", "vmap": false}, {"strategy": "vectorized", "node": "root", "t_start": 1.0, "t_end": 1.05, "type": "main", "label": "Root", "vmap": false}];
+const COLOURS = {"fold": "#964ECD", "ensemble": "#6fa8dc", "systematic": "#36C182", "estimator": "#FEE715", "main": "#FF6B6B"};
+
+// ── Layout constants ─────────────────────────────────────────────────────
+const STRATEGIES = ['sequential', 'parallel', 'vectorized'];
+const STR_LABELS = {
+  sequential: 'Sequential  (serial for-loop)',
+  parallel:   'Parallel    (CUDA streams / BFS levels)',
+  vectorized: 'Vectorized  (torch.func.vmap)',
+};
+const STR_COLORS = {
+  sequential: '#964ECD',
+  parallel:   '#6fa8dc',
+  vectorized: '#36C182',
+};
+
+const BAR_H    = 20;
+const BAR_GAP  = 4;
+const Y_PAD    = 36;
+const X_PAD_L  = 90;
+const X_PAD_R  = 20;
+const CANVAS_H_extra = 20;
+
+// ── Build unique Y-axis labels per strategy ────────────────────────────
+const yLabels = {}; // strategy -> [nodeId, ...]
+STRATEGIES.forEach(s => {
+  const seen = [];
+  TASKS.filter(t => t.strategy === s)
+       .sort((a,b) => a.t_start - b.t_start)
+       .forEach(t => { if (!seen.includes(t.node)) seen.push(t.node); });
+  yLabels[s] = seen;
+});
+
+// ── Global time range ─────────────────────────────────────────────────
+const allEnds = TASKS.map(t => t.t_end);
+const T_MAX   = Math.max(...allEnds) * 1.05;
+
+// ── Animation state ───────────────────────────────────────────────────
+let playhead   = 0;
+let isPlaying  = false;
+let animId     = null;
+
+// ── Build canvases ────────────────────────────────────────────────────
+const canvases = {};
+const grid     = document.getElementById('panelGrid');
+
+STRATEGIES.forEach(s => {
+  const nRows = yLabels[s].length;
+  const ch    = Y_PAD + nRows * (BAR_H + BAR_GAP) + CANVAS_H_extra + 10;
+
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  panel.innerHTML = `<h2 style="color:${STR_COLORS[s]}">${STR_LABELS[s]}</h2>`;
+
+  const canvas = document.createElement('canvas');
+  canvas.id     = 'canvas-' + s;
+  canvas.height = ch;
+  canvas.style.height = ch + 'px';
+  panel.appendChild(canvas);
+  grid.appendChild(panel);
+  canvases[s] = canvas;
+});
+
+// Resize observer to set pixel width
+function resizeAll() {
+  STRATEGIES.forEach(s => {
+    const c = canvases[s];
+    c.width = c.offsetWidth;
+  });
+  drawAll();
+}
+new ResizeObserver(resizeAll).observe(document.getElementById('panelGrid'));
+window.addEventListener('load', resizeAll);
+
+// ── Drawing ────────────────────────────────────────────────────────────
+function drawAll() {
+  STRATEGIES.forEach(s => drawStrategy(s));
+}
+
+function drawStrategy(s) {
+  const canvas = canvases[s];
+  const ctx    = canvas.getContext('2d');
+  const W      = canvas.width;
+  const H      = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const drawW  = W - X_PAD_L - X_PAD_R;
+  const xScale = v => X_PAD_L + (v / T_MAX) * drawW;
+
+  // Background
+  ctx.fillStyle = P().panel;
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines (light vertical)
+  const ticks = 5;
+  ctx.strokeStyle = P().grid;
+  ctx.lineWidth   = 1;
+  for (let i = 0; i <= ticks; i++) {
+    const x = xScale(T_MAX * i / ticks);
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+    // Tick labels
+    ctx.fillStyle   = P().dim;
+    ctx.font        = '10px system-ui';
+    ctx.textAlign   = 'center';
+    ctx.fillText(( T_MAX * i / ticks ).toFixed(1) + 'u', x, H - 4);
+  }
+
+  // Bars
+  const labels = yLabels[s];
+  const tasks  = TASKS.filter(t => t.strategy === s);
+  tasks.forEach(t => {
+    const row = labels.indexOf(t.node);
+    if (row < 0) return;
+    const y    = Y_PAD + row * (BAR_H + BAR_GAP);
+    const x0   = xScale(t.t_start);
+    const x1   = xScale(t.t_end);
+    const bw   = Math.max(x1 - x0, 2);
+    const col  = COLOURS[t.type] || '#888';
+
+    // Opacity based on playhead
+    const ratio = playhead > 0 ? Math.min(1, (playhead - t.t_start) / (t.t_end - t.t_start + 0.001)) : 0;
+    ctx.globalAlpha = 0.15 + ratio * 0.85;
+
+    // Bar body
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.roundRect(x0, y, bw, BAR_H, 3);
+    ctx.fill();
+
+    // vmap badge
+    if (t.vmap) {
+      ctx.globalAlpha = 1;
+      ctx.fillStyle   = 'rgba(255,255,255,0.18)';
+      ctx.font        = 'bold 9px system-ui';
+      ctx.textAlign   = 'center';
+      ctx.fillText('vmap', x0 + bw/2, y + BAR_H/2 + 3);
+    }
+
+    ctx.globalAlpha = 1;
+  });
+
+  // Y-axis labels
+  labels.forEach((node, row) => {
+    const y = Y_PAD + row * (BAR_H + BAR_GAP) + BAR_H / 2;
+    ctx.fillStyle   = P().dim;
+    ctx.font        = '10px system-ui';
+    ctx.textAlign   = 'right';
+    ctx.fillText(node.length > 11 ? node.slice(0,10)+'…' : node, X_PAD_L - 5, y + 4);
+  });
+
+  // X-axis label
+  ctx.fillStyle   = P().dim;
+  ctx.font        = '10px system-ui';
+  ctx.textAlign   = 'left';
+  ctx.fillText('time (relative units)', X_PAD_L, H - 4);
+
+  // Playhead
+  if (playhead > 0) {
+    const px = xScale(playhead);
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+// ── Tooltip ────────────────────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+function setupHover(s) {
+  const canvas = canvases[s];
+  canvas.addEventListener('mousemove', ev => {
+    const rect  = canvas.getBoundingClientRect();
+    const mx    = ev.clientX - rect.left;
+    const my    = ev.clientY - rect.top;
+    const W     = canvas.width;
+    const drawW = W - X_PAD_L - X_PAD_R;
+    const t_hov = ((mx - X_PAD_L) / drawW) * T_MAX;
+    const row   = Math.floor((my - Y_PAD) / (BAR_H + BAR_GAP));
+    const labels = yLabels[s];
+    if (row < 0 || row >= labels.length) { tooltip.style.display = 'none'; return; }
+    const nodeId = labels[row];
+    const task   = TASKS.find(t => t.strategy === s && t.node === nodeId);
+    if (!task || t_hov < 0) { tooltip.style.display = 'none'; return; }
+    tooltip.style.display = 'block';
+    tooltip.style.left    = (ev.clientX + 14) + 'px';
+    tooltip.style.top     = (ev.clientY - 10) + 'px';
+    const dur = (task.t_end - task.t_start).toFixed(3);
+    tooltip.innerHTML =
+      `<strong style="color:${COLOURS[task.type]}">${task.label || nodeId}</strong><br>` +
+      `Type: ${task.type}<br>` +
+      `Start: ${task.t_start.toFixed(3)}  End: ${task.t_end.toFixed(3)}<br>` +
+      `Duration: ${dur} units` +
+      (task.vmap ? '<br><em style="color:#36C182">batched via vmap</em>' : '');
+  });
+  canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+}
+STRATEGIES.forEach(setupHover);
+
+// ── Totals row ─────────────────────────────────────────────────────────
+function updateTotals() {
+  const row = document.getElementById('totalsRow');
+  row.innerHTML = '';
+  STRATEGIES.forEach(s => {
+    const tasks = TASKS.filter(t => t.strategy === s);
+    const tMax  = Math.max(...tasks.map(t => t.t_end)).toFixed(2);
+    const nL    = tasks.reduce((a,t) => a + (t.vmap ? 1 : 1), 0);
+    const foldsL = tasks.filter(t => t.type === 'fold' && t.vmap).length;
+    const seqL   = tasks.filter(t => t.type === 'fold' && !t.vmap).reduce((a,_)=>a+1,0);
+    const launchDesc = s === 'vectorized'
+      ? `1 vmap + ${tasks.filter(t=>!t.vmap).length} agg`
+      : `${tasks.length} kernels`;
+    const div = document.createElement('div');
+    div.className = 'total-item';
+    div.innerHTML = `
+      <span class="total-val" style="color:${STR_COLORS[s]}">${tMax}u</span>
+      <span style="color:#555">${STR_LABELS[s].split(' ')[0]}</span><br>
+      <small style="color:#8b949e">${launchDesc}</small>`;
+    row.appendChild(div);
+  });
+}
+updateTotals();
+
+// ── Legend ─────────────────────────────────────────────────────────────
+function buildLegend() {
+  const leg = document.getElementById('legend');
+  Object.entries(COLOURS).forEach(([type, col]) => {
+    const item = document.createElement('span');
+    item.className = 'legend-item';
+    item.innerHTML = `<span class="legend-dot" style="background:${col}"></span> ${type}`;
+    leg.appendChild(item);
+  });
+  const vmap = document.createElement('span');
+  vmap.className = 'legend-item';
+  vmap.innerHTML = `<span class="legend-dot" style="background:rgba(255,255,255,0.2);border:1px solid #ccc"></span> vmap kernel`;
+  leg.appendChild(vmap);
+}
+buildLegend();
+
+// ── Animation loop ────────────────────────────────────────────────────
+function tick() {
+  const speed = parseFloat(document.getElementById('speedSlider').value);
+  playhead += speed * 0.003;
+  if (playhead > T_MAX * 1.05) {
+    playhead = T_MAX * 1.05;
+    stopPlay();
+  }
+  drawAll();
+  if (isPlaying) animId = requestAnimationFrame(tick);
+}
+
+function startPlay() {
+  if (isPlaying) return;
+  if (playhead >= T_MAX * 1.05) playhead = 0;
+  isPlaying = true;
+  document.getElementById('btnPlay').textContent = '⏸ Pause';
+  document.getElementById('btnPlay').classList.add('active');
+  animId = requestAnimationFrame(tick);
+}
+
+function stopPlay() {
+  isPlaying = false;
+  cancelAnimationFrame(animId);
+  document.getElementById('btnPlay').textContent = '▶ Play';
+  document.getElementById('btnPlay').classList.remove('active');
+}
+
+document.getElementById('btnPlay').addEventListener('click', () => {
+  isPlaying ? stopPlay() : startPlay();
+});
+document.getElementById('btnReset').addEventListener('click', () => {
+  stopPlay();
+  playhead = 0;
+  drawAll();
+});
+// ── Theme toggle ─────────────────────────────────────────────────────────
+function P() {
+  const cs = getComputedStyle(document.body);
+  const g  = n => cs.getPropertyValue(n).trim();
+  return { bg: g('--bg'), panel: g('--bg-p'), idle: g('--idle'),
+           edge: g('--edge'), dim: g('--dim'), grid: g('--grid') };
+}
+document.getElementById('btnTheme').addEventListener('click', () => {
+  const light = document.body.classList.toggle('light');
+  document.getElementById('btnTheme').textContent = light ? '🌙 Dark' : '☀ Light';
+});
+</script>
+</body>
+</html>
