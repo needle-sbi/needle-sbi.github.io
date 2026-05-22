@@ -85,8 +85,9 @@ permalink: /project/
               in a single shot. In practice, the surrogate is rather composed of different sub-models that together
               predict the final quantity. In some cases, that number can reach into the hundreds of models, especially
               if techniques like ensembling are used to mitigate the biases coming from stochastic sources in 
-              the training.<br><br>
-
+              the training.
+            </p>
+            <p>
               NEEDLE uses a graph-structure to encode the relations between networks, a Directed Acyclic Graph (DAG). This DAG
               is also the natural representation of computational workflows in larger HEP analyses, with each step being an individual Task. Each model can be
               thought of as a single Task with clear inputs (training data) and outputs (trained model checkpoint). The NEEDLE
