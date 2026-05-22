@@ -104,24 +104,93 @@ permalink: /project/inference/
             
             <h4 style="font-family: var(--font-display); color: var(--text-primary); margin: 1.5rem 0 0.5rem; font-size: 1.1rem;">Performance</h4>
             <p>
-              Preliminary benchmarks of inference runtime for each mode of operation are available:
+              Preliminary benchmarks of inference runtime for each mode of operation. Select a network architecture to compare:
             </p>
-            <div style="margin: 1.5rem 0;">
-              <iframe
-                src="{{ 'assets/images/Real-Time_Inference/strategy_comparison_vs_networks.html' | relative_url }}"
-                style="width: 100%; height: 720px; border: none; border-radius: 8px; display: block;"
+
+            <!-- Architecture tab bar -->
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;">
+              <button class="bench-arch-tab"
+                data-arch="nh05"
+                onclick="setBenchArch(this)"
+                style="padding: 0.35rem 0.9rem; border-radius: 6px; border: 1px solid var(--accent-primary, #1f6feb); background: var(--accent-primary, #1f6feb); color: #fff; cursor: pointer; font-size: 0.82rem; font-family: inherit;">
+                n<sub>h</sub> = 5
+              </button>
+              <button class="bench-arch-tab"
+                data-arch="nh10"
+                onclick="setBenchArch(this)"
+                style="padding: 0.35rem 0.9rem; border-radius: 6px; border: 1px solid var(--border-color, #30363d); background: var(--bg-card, #161b22); color: var(--text-primary, #e6edf3); cursor: pointer; font-size: 0.82rem; font-family: inherit;">
+                n<sub>h</sub> = 10
+              </button>
+              <button class="bench-arch-tab"
+                data-arch="nh15"
+                onclick="setBenchArch(this)"
+                style="padding: 0.35rem 0.9rem; border-radius: 6px; border: 1px solid var(--border-color, #30363d); background: var(--bg-card, #161b22); color: var(--text-primary, #e6edf3); cursor: pointer; font-size: 0.82rem; font-family: inherit;">
+                n<sub>h</sub> = 15
+              </button>
+              <button class="bench-arch-tab"
+                data-arch="hd064"
+                onclick="setBenchArch(this)"
+                style="padding: 0.35rem 0.9rem; border-radius: 6px; border: 1px solid var(--border-color, #30363d); background: var(--bg-card, #161b22); color: var(--text-primary, #e6edf3); cursor: pointer; font-size: 0.82rem; font-family: inherit;">
+                h<sub>d</sub> = 64
+              </button>
+              <button class="bench-arch-tab"
+                data-arch="hd128"
+                onclick="setBenchArch(this)"
+                style="padding: 0.35rem 0.9rem; border-radius: 6px; border: 1px solid var(--border-color, #30363d); background: var(--bg-card, #161b22); color: var(--text-primary, #e6edf3); cursor: pointer; font-size: 0.82rem; font-family: inherit;">
+                h<sub>d</sub> = 128
+              </button>
+            </div>
+
+            <p style="color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 0.4rem;">Runtime vs. network parameter count:</p>
+            <div style="margin-bottom: 1.5rem;">
+              <iframe id="bench-vs-params"
+                src="{{ '/assets/animations/Real-Time_Inference/strategy_comparison_nh05_vs_params.html' | relative_url }}"
+                style="width: 100%; height: 560px; border: none; border-radius: 8px; display: block;"
                 loading="lazy"
-                title="Real-Time Inference Runtime Benchmarks on Tesla V100 32GB Accelerator Vs Network Size"
+                title="Runtime Benchmarks vs. Network Parameter Count"
               ></iframe>
             </div>
-               <div style="margin: 1.5rem 0;">
-              <iframe
-                src="{{ 'assets/images/Real-Time_Inference/strategy_comparison_vs_networks.html' | relative_url }}"
-                style="width: 100%; height: 720px; border: none; border-radius: 8px; display: block;"
+
+            <p style="color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 0.4rem;">Runtime vs. number of networks in the DAG:</p>
+            <div>
+              <iframe id="bench-vs-networks"
+                src="{{ '/assets/animations/Real-Time_Inference/strategy_comparison_nh05_vs_networks.html' | relative_url }}"
+                style="width: 100%; height: 560px; border: none; border-radius: 8px; display: block;"
                 loading="lazy"
-                title="Real-Time Inference Runtime Benchmarks on Tesla V100 32GB Accelerator vs Network Count"
+                title="Runtime Benchmarks vs. Network Count"
               ></iframe>
             </div>
+
+            <script>
+            (function () {
+              var base = '{{ "/assets/animations/Real-Time_Inference/strategy_comparison_" | relative_url }}';
+              window.setBenchArch = function (btn) {
+                document.querySelectorAll('.bench-arch-tab').forEach(function (b) {
+                  b.style.background  = 'var(--bg-card, #161b22)';
+                  b.style.borderColor = 'var(--border-color, #30363d)';
+                  b.style.color       = 'var(--text-primary, #e6edf3)';
+                });
+                btn.style.background  = 'var(--accent-primary, #1f6feb)';
+                btn.style.borderColor = 'var(--accent-primary, #1f6feb)';
+                btn.style.color       = '#fff';
+                var arch = btn.getAttribute('data-arch');
+                document.getElementById('bench-vs-params').src   = base + arch + '_vs_params.html';
+                document.getElementById('bench-vs-networks').src = base + arch + '_vs_networks.html';
+              };
+            })();
+            </script>
+
+              <p>
+              The benchmarks demonstrate the key advantage of concurrent acceleration for the pseudo-surrogate. 
+              The sequential mode of operation, whilst simple, is the slowest methodology when 
+              running on a single NVidia Tesla V100 card, due to the linear complexity scaling in either the number of networks
+              in the DAG, or non-linear scaling in network parameters. The vectorized mode of operation offers substantial improvements in 
+              acceleration that substantially curbs the linear and non-linear scaling of the complexity problem as a function of 
+              network size (num. params) or the number of networks in the DAG, whilst using a single GPU. However, the parallel mode of 
+              operation offers scalability in terms of horizontal acceleration (across multiple GPUs), where in the above test 2 NVidia Tesla V100
+              GPUs were used to concurrently process the networks using individual CUDA streams. Whilst the most performant mode of operation
+              this comes at the expense of more computational resources. 
+              </p>
           </div>
         </div>
               
