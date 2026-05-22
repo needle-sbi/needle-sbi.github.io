@@ -62,13 +62,16 @@
 #  description: "..."
 #  affiliation: "KIT | ..."
 #  image: "https://via.placeholder.com/300x300/00d4ff/ffffff?text=YT"
-#
-#- name: "Niklas Reus"
-#  title: "..."
-#  role: "..."
-#  description: "..."
-#  affiliation: "KIT | ..."
-#  image: "https://via.placeholder.com/300x300/ff6b35/ffffff?text=RG"
+
+- name: "Niklas Reus"
+  title: "Master's Student"
+  role: ""
+  description: >
+    Working on systematic uncertainties in simulation-based inference for direct dark matter
+    detection. Applying Neural Likelihood Ratio Estimation to infer WIMP properties from
+    XENONnT nuclear recoil spectra.
+  affiliation: "KIT | XENON Collaboration"
+  image: "assets/images/team/niklas.jpg"
 
 - name: "Nicolo Trevisani"
   title: "Post-Doctoral Researcher"
