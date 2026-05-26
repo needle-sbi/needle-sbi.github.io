@@ -65,10 +65,10 @@ permalink: /project/dag/
             <p>NEEDLE provides a set of ready-to-use torch dataloaders with different levels of complexity, depending on the computational
               demand of the training. 
             </p>
-              The base version loads data eagerly from parquet or root files in awkward arrays and returns a torch base dataloader with
+            <p>The base version loads data eagerly from parquet or root files in awkward arrays and returns a torch base dataloader with
               all data loaded in memory. The delayed version harnesses dask to lazily load the shape of the array, allowing for read-on-demand. This 
               is especially useful in cases where the memory overhead is a critical limitation, in which case this dataloader caps the maximum concurrent
-              memory usage. Further acceleration is provided by multiprocessing with either dask (IO) or torch (compute).
+              memory usage. Further acceleration is provided by multiprocessing with either dask (IO) or torch (compute).</p>
           </div>
         </div>
       </div>
