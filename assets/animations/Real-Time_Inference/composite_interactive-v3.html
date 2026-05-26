@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NEEDLE – Composite Execution Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117; color: #e6edf3;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 20px;
+  }
+  h1  { font-size: 1.4rem; margin-bottom: 4px; }
+  .subtitle {
+    font-size: 0.82rem; color: #8b949e; margin-bottom: 16px;
+    text-align: center; max-width: 800px;
+  }
+  .controls {
+    display: flex; gap: 10px; align-items: center;
+    margin-bottom: 14px; flex-wrap: wrap; justify-content: center;
+  }
+  button {
+    background: #21262d; border: 1px solid #30363d;
+    color: #c9d1d9; border-radius: 6px;
+    padding: 6px 16px; font-size: 0.82rem; cursor: pointer;
+  }
+  button:hover { background: #30363d; }
+  button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  label { font-size: 0.78rem; color: #8b949e; }
+  input[type=range] { width: 90px; accent-color: #1f6feb; cursor: pointer; }
+
+  /* Main dashboard grid: 3 columns × 3 rows (plus header row) */
+  .dash {
+    width: 100%; max-width: 1300px;
+    display: grid;
+    grid-template-columns: 120px 1fr 2fr 1fr;
+    grid-template-rows: auto repeat(3, auto);
+    gap: 6px 8px;
+  }
+  .col-hdr {
+    background: #161b22; border: 1px solid #30363d;
+    border-radius: 6px; padding: 6px 10px;
+    font-size: 0.75rem; color: #8b949e;
+    text-align: center; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .row-hdr {
+    border-radius: 6px; padding: 8px 6px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    font-size: 0.78rem; font-weight: 700;
+    writing-mode: horizontal-tb; text-align: center;
+  }
+  .cell {
+    background: #161b22; border: 1px solid #30363d;
+    border-radius: 8px; padding: 8px;
+    overflow: hidden;
+  }
+  .cell.highlighted { border-color: #1f6feb; box-shadow: 0 0 0 1px #1f6feb44; }
+  canvas { width: 100%; display: block; }
+
+  /* Legend */
+  .legend {
+    display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;
+    margin-top: 12px; font-size: 0.74rem;
+  }
+  .leg-item { display: flex; align-items: center; gap: 5px; }
+  .leg-sw { width: 14px; height: 14px; border-radius: 50%; }
+
+  /* Global progress */
+  .progress-wrap { width: 100%; max-width: 1300px; margin-top: 8px; }
+  .progress-bar { height: 4px; background: #21262d; border-radius: 2px; }
+  .progress-fill { height: 100%; background: #1f6feb; border-radius: 2px; transition: width 0.1s; }
+  .progress-label { font-size: 0.72rem; color: #8b949e; margin-top: 3px; text-align: right; }
+  /* ── Theme variables ──────────────────────────────────────── */
+  :root {
+    --bg:#0d1117; --bg-p:#161b22; --bdr:#30363d;
+    --tx:#e6edf3; --tx2:#8b949e; --bbg:#21262d;
+    --cvbg:#0d1117; --idle:#2c2c2c; --edge:#30363d; --dim:#8b949e; --grid:#1a2030;
+  }
+  body.light {
+    --bg:#f6f8fa; --bg-p:#ffffff; --bdr:#d0d7de;
+    --tx:#24292f; --tx2:#57606a; --bbg:#eaeef2;
+    --cvbg:#f6f8fa; --idle:#d0d7de; --edge:#d0d7de; --dim:#57606a; --grid:#e2e5e9;
+  }
+  body { background:var(--bg); color:var(--tx); }
+  h1   { color:var(--tx); }
+  .panel,.cell { background:var(--bg-p); border-color:var(--bdr); }
+  .subtitle,.desc,.step-info,.stat-bar,.eff-label,.progress-label,
+  label,.legend,.legend-item,.totals,.total-item,.col-hdr { color:var(--tx2); }
+  .stat-val { color:var(--tx); }
+  button:not(.active) { background:var(--bbg); border-color:var(--bdr); color:var(--tx); }
+  button:not(.active):hover { background:var(--bdr); }
+  .row-hdr { background:var(--bg-p) !important; border-color:var(--bdr) !important; }
+  .col-hdr { background:var(--bg-p); border-color:var(--bdr); color:var(--tx2); }
+</style>
+</head>
+<body>
+
+<h1>NEEDLE – Composite Execution Dashboard</h1>
+<p class="subtitle">
+  Three strategies (rows) × three views (DAG | Execution Steps | Output Tensor).
+  Click any cell to highlight the corresponding step across all views.
+</p>
+
+<div class="controls">
+  <button id="btnPlay">▶ Play</button>
+  <button id="btnReset">↺ Reset</button>
+  <button id="btnTheme">☀ Light</button>
+  <label>Speed <input type="range" id="spd" min="1" max="8" value="3"></label>
+  <span id="globalTime" style="font-size:0.78rem;color:#8b949e;margin-left:8px">t = 0.00u</span>
+</div>
+
+<div class="dash" id="dash">
+  <!-- Header row -->
+  <div class="col-hdr" style="grid-row:1;grid-column:1"></div>
+  <div class="col-hdr" style="grid-row:1;grid-column:2">DAG State</div>
+  <div class="col-hdr" style="grid-row:1;grid-column:3">Execution Steps (Gantt)</div>
+  <div class="col-hdr" style="grid-row:1;grid-column:4">Output Tensor</div>
+
+  <!-- Sequential row -->
+  <div class="row-hdr" style="grid-row:2;grid-column:1;color:#964ECD;background:#1a1020;border:1px solid #30363d">
+    Sequential
+  </div>
+  <div class="cell" id="dag-seq"    style="grid-row:2;grid-column:2"><canvas id="cv-dag-seq"    height="180"></canvas></div>
+  <div class="cell" id="gantt-seq"  style="grid-row:2;grid-column:3"><canvas id="cv-gantt-seq"  height="180"></canvas></div>
+  <div class="cell" id="tensor-seq" style="grid-row:2;grid-column:4"><canvas id="cv-tensor-seq" height="180"></canvas></div>
+
+  <!-- Parallel row -->
+  <div class="row-hdr" style="grid-row:3;grid-column:1;color:#6fa8dc;background:#101a20;border:1px solid #30363d">
+    Parallel
+  </div>
+  <div class="cell" id="dag-par"    style="grid-row:3;grid-column:2"><canvas id="cv-dag-par"    height="180"></canvas></div>
+  <div class="cell" id="gantt-par"  style="grid-row:3;grid-column:3"><canvas id="cv-gantt-par"  height="180"></canvas></div>
+  <div class="cell" id="tensor-par" style="grid-row:3;grid-column:4"><canvas id="cv-tensor-par" height="180"></canvas></div>
+
+  <!-- Vectorized row -->
+  <div class="row-hdr" style="grid-row:4;grid-column:1;color:#36C182;background:#101a18;border:1px solid #30363d">
+    Vectorized
+  </div>
+  <div class="cell" id="dag-vec"    style="grid-row:4;grid-column:2"><canvas id="cv-dag-vec"    height="180"></canvas></div>
+  <div class="cell" id="gantt-vec"  style="grid-row:4;grid-column:3"><canvas id="cv-gantt-vec"  height="180"></canvas></div>
+  <div class="cell" id="tensor-vec" style="grid-row:4;grid-column:4"><canvas id="cv-tensor-vec" height="180"></canvas></div>
+</div>
+
+<div class="progress-wrap">
+  <div class="progress-bar"><div class="progress-fill" id="progFill" style="width:0%"></div></div>
+  <div class="progress-label" id="progLabel">0 / 0 steps</div>
+</div>
+
+<div class="legend">
+  <span class="leg-item"><span class="leg-sw" style="background:#964ECD"></span>fold</span>
+  <span class="leg-item"><span class="leg-sw" style="background:#6fa8dc"></span>ensemble</span>
+  <span class="leg-item"><span class="leg-sw" style="background:#36C182"></span>systematic</span>
+  <span class="leg-item"><span class="leg-sw" style="background:#FEE715"></span>estimator</span>
+  <span class="leg-item"><span class="leg-sw" style="background:#FF6B6B"></span>root</span>
+  <span class="leg-item"><span class="leg-sw" style="background:#444"></span>idle</span>
+  <span class="leg-item"><span class="leg-sw" style="background:#f0c040"></span>active</span>
+</div>
+
+<script>
+const NODES   = {"fold_0": {"type": "fold", "label": "F₀₀"}, "fold_1": {"type": "fold", "label": "F₀₁"}, "fold_2": {"type": "fold", "label": "F₀₂"}, "fold_3": {"type": "fold", "label": "F₁₀"}, "fold_4": {"type": "fold", "label": "F₁₁"}, "fold_5": {"type": "fold", "label": "F₁₂"}, "ensemble_0": {"type": "ensemble", "label": "E₀"}, "ensemble_1": {"type": "ensemble", "label": "E₁"}, "systematic_0": {"type": "systematic", "label": "Sys"}, "estimator_0": {"type": "estimator", "label": "Model"}, "root": {"type": "main", "label": "Root"}};
+const EDGES   = [{"sources": ["fold_0", "fold_1", "fold_2"], "target": "ensemble_0"}, {"sources": ["fold_3", "fold_4", "fold_5"], "target": "ensemble_1"}, {"sources": ["ensemble_0", "ensemble_1"], "target": "systematic_0"}, {"sources": ["systematic_0"], "target": "estimator_0"}, {"sources": ["estimator_0"], "target": "root"}];
+const LAYOUT  = {"fold_0": [0.13, 0.92], "fold_1": [0.37, 0.92], "fold_2": [0.62, 0.92], "fold_3": [0.38, 0.78], "fold_4": [0.62, 0.78], "fold_5": [0.85, 0.78], "ensemble_0": [0.26, 0.63], "ensemble_1": [0.72, 0.63], "systematic_0": [0.5, 0.45], "estimator_0": [0.5, 0.28], "root": [0.5, 0.1]};
+const COLOURS = {"fold": "#964ECD", "ensemble": "#6fa8dc", "systematic": "#36C182", "estimator": "#FEE715", "main": "#FF6B6B"};
+const GANTT   = { seq: [{"node": "fold_0", "label": "F₀₀", "type": "fold", "start": 0.0, "dur": 1.0}, {"node": "fold_1", "label": "F₀₁", "type": "fold", "start": 1.0, "dur": 1.0}, {"node": "fold_2", "label": "F₀₂", "type": "fold", "start": 2.0, "dur": 1.0}, {"node": "fold_3", "label": "F₁₀", "type": "fold", "start": 3.0, "dur": 1.0}, {"node": "fold_4", "label": "F₁₁", "type": "fold", "start": 4.0, "dur": 1.0}, {"node": "fold_5", "label": "F₁₂", "type": "fold", "start": 5.0, "dur": 1.0}, {"node": "ensemble_0", "label": "E₀", "type": "ensemble", "start": 6.0, "dur": 0.2}, {"node": "ensemble_1", "label": "E₁", "type": "ensemble", "start": 6.2, "dur": 0.2}, {"node": "systematic_0", "label": "Sys", "type": "systematic", "start": 6.4, "dur": 0.15}, {"node": "estimator_0", "label": "Model", "type": "estimator", "start": 6.55, "dur": 0.1}, {"node": "root", "label": "Root", "type": "main", "start": 6.65, "dur": 0.05}], par: [{"node": "fold_0", "label": "F₀₀", "type": "fold", "start": 0.0, "dur": 1.0}, {"node": "fold_1", "label": "F₀₁", "type": "fold", "start": 0.0, "dur": 1.0}, {"node": "fold_2", "label": "F₀₂", "type": "fold", "start": 0.0, "dur": 1.0}, {"node": "fold_3", "label": "F₁₀", "type": "fold", "start": 0.0, "dur": 1.0}, {"node": "fold_4", "label": "F₁₁", "type": "fold", "start": 0.0, "dur": 1.0}, {"node": "fold_5", "label": "F₁₂", "type": "fold", "start": 0.0, "dur": 1.0}, {"node": "ensemble_0", "label": "E₀", "type": "ensemble", "start": 1.0, "dur": 0.2}, {"node": "ensemble_1", "label": "E₁", "type": "ensemble", "start": 1.0, "dur": 0.2}, {"node": "systematic_0", "label": "Sys", "type": "systematic", "start": 1.2, "dur": 0.15}, {"node": "estimator_0", "label": "Model", "type": "estimator", "start": 1.35, "dur": 0.1}, {"node": "root", "label": "Root", "type": "main", "start": 1.45, "dur": 0.05}], vec: [{"node": "fold_0", "label": "F₀₀", "type": "fold", "start": 0.0, "dur": 0.55, "vmap": true}, {"node": "fold_1", "label": "F₀₁", "type": "fold", "start": 0.0, "dur": 0.55, "vmap": true}, {"node": "fold_2", "label": "F₀₂", "type": "fold", "start": 0.0, "dur": 0.55, "vmap": true}, {"node": "fold_3", "label": "F₁₀", "type": "fold", "start": 0.0, "dur": 0.55, "vmap": true}, {"node": "fold_4", "label": "F₁₁", "type": "fold", "start": 0.0, "dur": 0.55, "vmap": true}, {"node": "fold_5", "label": "F₁₂", "type": "fold", "start": 0.0, "dur": 0.55, "vmap": true}, {"node": "ensemble_0", "label": "E₀", "type": "ensemble", "start": 0.55, "dur": 0.2}, {"node": "ensemble_1", "label": "E₁", "type": "ensemble", "start": 0.75, "dur": 0.2}, {"node": "systematic_0", "label": "Sys", "type": "systematic", "start": 0.95, "dur": 0.15}, {"node": "estimator_0", "label": "Model", "type": "estimator", "start": 1.1, "dur": 0.1}, {"node": "root", "label": "Root", "type": "main", "start": 1.2, "dur": 0.05}] };
+const ALL_NODES = ["fold_0", "fold_1", "fold_2", "fold_3", "fold_4", "fold_5", "ensemble_0", "ensemble_1", "systematic_0", "estimator_0", "root"];
+
+// ── Timing helpers ─────────────────────────────────────────────────────
+function totalDur(bars) { return Math.max(...bars.map(b => b.start + b.dur)); }
+const DUR = { seq: totalDur(GANTT.seq), par: totalDur(GANTT.par), vec: totalDur(GANTT.vec) };
+const MAX_DUR = Math.max(...Object.values(DUR));
+
+let globalT  = 0;  // 0..MAX_DUR
+let isPlaying = false, animId = null;
+
+// ── Node colours ─────────────────────────────────────────────────────
+function nodeColor(id, activeNodes, doneNodes, animT) {
+  if (activeNodes.includes(id)) {
+    const pulse = 0.7 + 0.3 * Math.sin(animT * 10);
+    return `rgba(240,192,64,${pulse})`;  // yellow flash
+  }
+  if (doneNodes.includes(id)) return COLOURS[NODES[id].type];
+  return P().idle;
+}
+
+// ── DAG drawing ────────────────────────────────────────────────────────
+function drawDAG(canvasId, activeNodes, doneNodes) {
+  const canvas = document.getElementById(canvasId);
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = P().bg; ctx.fillRect(0,0,W,H);
+
+  const r = Math.min(W, H) * 0.055;
+  const positions = {};
+
+  // Convert relative positions
+  Object.entries(LAYOUT).forEach(([id,[rx,ry]]) => {
+    positions[id] = { x: rx * W, y: ry * H };
+  });
+
+  // Edges
+  EDGES.forEach(edge => {
+    edge.sources.forEach(src => {
+      const a = positions[src], b = positions[edge.target];
+      if (!a || !b) return;
+      ctx.strokeStyle = P().edge; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    });
+  });
+
+  // Nodes
+  Object.entries(positions).forEach(([id, pos]) => {
+    const col = nodeColor(id, activeNodes, doneNodes, globalT);
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, r, 0, Math.PI*2);
+    ctx.fillStyle = col; ctx.fill();
+    ctx.strokeStyle = P().edge; ctx.lineWidth = 1; ctx.stroke();
+
+    ctx.fillStyle = (doneNodes.includes(id) || activeNodes.includes(id)) ? '#fff' : P().dim;
+    ctx.font = `${Math.max(7, r*0.7)}px system-ui`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(NODES[id].label, pos.x, pos.y);
+  });
+}
+
+// ── Gantt drawing ──────────────────────────────────────────────────────
+// Each bar has { node, label, type, start, dur, [vmap] }.
+// Bars sharing the same start time are parallel — shaded together.
+function drawGantt(canvasId, key, t) {
+  const canvas = document.getElementById(canvasId);
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = P().bg; ctx.fillRect(0,0,W,H);
+
+  const bars    = GANTT[key];
+  const dur     = DUR[key];
+  const n       = bars.length;
+  const rowH    = (H - 2) / n;
+  const padX    = 40;
+  const padTop  = 1;
+  const barArea = W - padX - 6;
+  const localT  = Math.min(t, dur);
+  const fnt     = `${Math.max(7, Math.min(9, Math.floor(rowH * 0.62)))}px system-ui`;
+
+  // Group consecutive bars that share the same start time (= parallel group)
+  const groups = [];
+  let gi = 0;
+  while (gi < bars.length) {
+    const s = bars[gi].start;
+    let gj  = gi;
+    while (gj < bars.length && bars[gj].start === s) gj++;
+    groups.push({ startTime: s, idxs: Array.from({length: gj - gi}, (_, k) => gi + k) });
+    gi = gj;
+  }
+
+  // --- Pass 1: shade parallel group backgrounds ---
+  groups.forEach(g => {
+    if (g.idxs.length < 2) return;
+    const b0   = bars[g.idxs[0]];
+    const x0   = padX + (b0.start / dur) * barArea;
+    const x1   = padX + ((b0.start + b0.dur) / dur) * barArea;
+    const y0   = padTop + g.idxs[0] * rowH;
+    const y1   = padTop + (g.idxs[g.idxs.length - 1] + 1) * rowH;
+    const isVM = !!b0.vmap;
+    ctx.fillStyle   = isVM ? 'rgba(54,193,130,0.07)' : 'rgba(111,168,220,0.07)';
+    ctx.strokeStyle = isVM ? 'rgba(54,193,130,0.45)' : 'rgba(111,168,220,0.45)';
+    ctx.lineWidth   = 1;
+    ctx.setLineDash(isVM ? [3, 2] : []);
+    ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    ctx.setLineDash([]);
+    // Small indicator label inside top-right corner of the group
+    ctx.fillStyle = isVM ? '#36C182' : '#6fa8dc';
+    ctx.font      = '7px system-ui';
+    ctx.textAlign = 'right';
+    ctx.fillText(isVM ? 'vmap' : '‖', x1 - 2, y0 + 7);
+  });
+
+  // --- Pass 2: draw individual bars ---
+  bars.forEach((bar, i) => {
+    const x0 = padX + (bar.start / dur) * barArea;
+    const bw = Math.max(2, (bar.dur  / dur) * barArea);
+    const y  = padTop + i * rowH + 1;
+    const bh = rowH - 2;
+
+    let col   = P().idle;
+    let alpha = 0.30;
+    if (localT >= bar.start + bar.dur) {
+      col   = COLOURS[bar.type] || '#555';
+      alpha = 0.85;
+    } else if (localT >= bar.start) {
+      col   = '#f0c040';
+      alpha = 0.95;
+    }
+
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle   = col;
+    ctx.beginPath(); ctx.roundRect(x0, y, bw, bh, 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Left-side label
+    ctx.fillStyle = P().dim;
+    ctx.font      = fnt;
+    ctx.textAlign = 'right';
+    ctx.fillText(bar.label, padX - 2, y + bh / 2 + 3);
+  });
+
+  // --- Playhead ---
+  const phX = padX + (localT / dur) * barArea;
+  ctx.strokeStyle = '#1f6feb'; ctx.lineWidth = 1.5;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(phX, 0); ctx.lineTo(phX, H); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ── Tensor drawing ──────────────────────────────────────────────────────
+// 5-tier merge cascade: Folds → Ensembles → Sys → Model → Root
+// Each tier lights up when its node activates/completes, kept in sync
+// with the Gantt progress line. Connector lines show the merge tree.
+function drawTensor(canvasId, key, t) {
+  const canvas = document.getElementById(canvasId);
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = P().bg; ctx.fillRect(0, 0, W, H);
+
+  const bars   = GANTT[key];
+  const dur    = DUR[key];
+  const localT = Math.min(t, dur);
+
+  // Node state: 'done' | 'active' | 'idle'
+  function st(nodeId) {
+    const b = bars.find(x => x.node === nodeId);
+    if (!b) return 'idle';
+    if (localT >= b.start + b.dur) return 'done';
+    if (localT >= b.start)         return 'active';
+    return 'idle';
+  }
+
+  // Layout
+  const padX = 5, capH = 12, padBt = 12;
+  const iW   = W - padX * 2;
+  const iH   = H - capH - padBt;
+  const nR   = 5;  // fold | ensemble | sys | estimator | root
+  const gap  = 3;
+  const rH   = Math.floor((iH - gap * (nR - 1)) / nR);
+  const ry   = i => capH + i * (rH + gap);
+
+  // Draw a single bar for nodeId at (x,y,w,h) with a text label
+  function drawBar(x, y, w, h, nodeId, label) {
+    const s = st(nodeId);
+    let col, alpha;
+    if (s === 'done') {
+      col = COLOURS[NODES[nodeId].type] || '#555'; alpha = 0.88;
+    } else if (s === 'active') {
+      const pulse = 0.65 + 0.35 * Math.sin(localT * 12);
+      col = '#f0c040'; alpha = pulse;
+    } else {
+      col = P().idle; alpha = 0.38;
+    }
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle   = col;
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    if (s === 'active') {
+      ctx.strokeStyle = '#f0c040'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(x, y, w, h, 2); ctx.stroke();
+    }
+    const fsize = Math.max(7, Math.min(10, Math.floor(h * 0.52)));
+    ctx.globalAlpha = s === 'idle' ? 0.28 : 1;
+    ctx.fillStyle   = s === 'idle' ? P().dim : '#fff';
+    ctx.font = `${fsize}px system-ui`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, x + w / 2, y + h / 2);
+    ctx.globalAlpha = 1;
+  }
+
+  // Draw merge-connector line; lit (solid) once the parent/consuming node activates
+  function conn(x1, y1, x2, y2, parentId) {
+    const lit = st(parentId) !== 'idle';
+    ctx.save();
+    ctx.strokeStyle = lit ? P().edge : P().grid;
+    ctx.lineWidth   = lit ? 0.9 : 0.4;
+    ctx.globalAlpha = lit ? 0.65 : 0.18;
+    ctx.setLineDash(lit ? [] : [2, 2]);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── Row 0: 6 fold bars ─────────────────────────────────────────
+  const nF = 6, fGap = 2;
+  const fW = Math.floor((iW - fGap * (nF - 1)) / nF);
+  const foldsData = [
+    {id:'fold_0', lbl:'F₀₀'}, {id:'fold_1', lbl:'F₀₁'}, {id:'fold_2', lbl:'F₀₂'},
+    {id:'fold_3', lbl:'F₁₀'}, {id:'fold_4', lbl:'F₁₁'}, {id:'fold_5', lbl:'F₁₂'},
+  ];
+  foldsData.forEach((f, fi) => {
+    drawBar(padX + fi * (fW + fGap), ry(0), fW, rH, f.id, f.lbl);
+  });
+
+  // ── Row 1: 2 ensemble bars ─────────────────────────────────────
+  const eGap = 4;
+  const eW   = Math.floor((iW - eGap) / 2);
+  const ex0  = padX, ex1 = padX + eW + eGap;
+  drawBar(ex0, ry(1), eW, rH, 'ensemble_0', 'E₀');
+  drawBar(ex1, ry(1), eW, rH, 'ensemble_1', 'E₁');
+
+  // ── Rows 2–4: Sys, Model, Root (full width) ────────────────────
+  drawBar(padX, ry(2), iW, rH, 'systematic_0', 'Sys');
+  drawBar(padX, ry(3), iW, rH, 'estimator_0',  'Model');
+  drawBar(padX, ry(4), iW, rH, 'root',         'Root');
+
+  // ── Connectors: fold → ensemble ────────────────────────────────
+  foldsData.forEach((f, fi) => {
+    const fxc = padX + fi * (fW + fGap) + fW / 2;
+    const pid = fi < 3 ? 'ensemble_0' : 'ensemble_1';
+    const exc = fi < 3 ? (ex0 + eW / 2) : (ex1 + eW / 2);
+    conn(fxc, ry(0) + rH, exc, ry(1), pid);
+  });
+
+  // ── Connectors: ensemble → sys ─────────────────────────────────
+  const midX = padX + iW / 2;
+  conn(ex0 + eW / 2, ry(1) + rH, midX, ry(2), 'systematic_0');
+  conn(ex1 + eW / 2, ry(1) + rH, midX, ry(2), 'systematic_0');
+
+  // ── Connectors: sys → model → root ─────────────────────────────
+  conn(midX, ry(2) + rH, midX, ry(3), 'estimator_0');
+  conn(midX, ry(3) + rH, midX, ry(4), 'root');
+
+  // ── Caption ─────────────────────────────────────────────────────
+  ctx.fillStyle = P().dim; ctx.font = '9px system-ui';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText('Tensor Assembly', W / 2, capH - 1);
+}
+
+// ── Compute done/active nodes at time t ─────────────────────────────────
+function computeDone(bars, t) {
+  const done   = [];
+  const active = [];
+  bars.forEach(bar => {
+    if (t >= bar.start + bar.dur) done.push(bar.node);
+    else if (t >= bar.start)       active.push(bar.node);
+  });
+  return { done, active };
+}
+
+// ── Main render ─────────────────────────────────────────────────────────
+function render() {
+  const t = globalT;
+
+  ['seq','par','vec'].forEach(k => {
+    const bars = GANTT[k];
+    const { done, active } = computeDone(bars, t);
+    drawDAG    (`cv-dag-${k}`,    active, done);
+    drawGantt  (`cv-gantt-${k}`,  k, t);
+    drawTensor (`cv-tensor-${k}`, k, t);
+  });
+
+  // Progress bar (global)
+  const pct = Math.min(1, t / MAX_DUR) * 100;
+  document.getElementById('progFill').style.width = pct + '%';
+  document.getElementById('progLabel').textContent = `t = ${t.toFixed(2)}u / ${MAX_DUR.toFixed(2)}u`;
+  document.getElementById('globalTime').textContent = `t = ${t.toFixed(2)}u`;
+}
+
+// ── Tick ─────────────────────────────────────────────────────────────────
+function tick() {
+  const spd = parseFloat(document.getElementById('spd').value);
+  globalT += spd * 0.008;
+  if (globalT > MAX_DUR) globalT = 0;
+  render();
+  if (isPlaying) animId = requestAnimationFrame(tick);
+}
+
+function startPlay() {
+  if (isPlaying) return; isPlaying = true;
+  document.getElementById('btnPlay').textContent = '⏸ Pause';
+  document.getElementById('btnPlay').classList.add('active');
+  animId = requestAnimationFrame(tick);
+}
+function stopPlay() {
+  isPlaying = false; cancelAnimationFrame(animId);
+  document.getElementById('btnPlay').textContent = '▶ Play';
+  document.getElementById('btnPlay').classList.remove('active');
+}
+
+document.getElementById('btnPlay').addEventListener('click', () => isPlaying ? stopPlay() : startPlay());
+document.getElementById('btnReset').addEventListener('click', () => { stopPlay(); globalT = 0; render(); });
+// ── Theme toggle ─────────────────────────────────────────────────────────
+function P() {
+  const cs = getComputedStyle(document.body);
+  const g  = n => cs.getPropertyValue(n).trim();
+  return { bg: g('--bg'), panel: g('--bg-p'), idle: g('--idle'),
+           edge: g('--edge'), dim: g('--dim'), grid: g('--grid') };
+}
+document.getElementById('btnTheme').addEventListener('click', () => {
+  const light = document.body.classList.toggle('light');
+  document.getElementById('btnTheme').textContent = light ? '🌙 Dark' : '☀ Light';
+});
+// ── Resize ────────────────────────────────────────────────────────────────
+function resizeAll() {
+  document.querySelectorAll('canvas').forEach(c => { c.width = c.offsetWidth || 200; });
+  render();
+}
+new ResizeObserver(resizeAll).observe(document.getElementById('dash'));
+window.addEventListener('load', () => { resizeAll(); render(); });
+</script>
+</body>
+</html>

@@ -10,7 +10,7 @@ permalink: /project/inference/
     <div class="section-header">
       <h2 class="section-title">Real-Time Inference</h2>
       <p style="max-width: 800px; margin: 1.5rem auto 0; color: var(--text-secondary); font-size: 1.1rem;">
-        Efficient and fast computation of non-equilibrium models
+        Efficient and fast computation of non-equilibrium models via Directed Acyclic Graphs
       </p>
     </div>
     
@@ -18,63 +18,179 @@ permalink: /project/inference/
       <div class="project-intro">
         <h3 style="font-family: var(--font-display); color: var(--accent-primary); margin-bottom: 1rem;">Overview</h3>
         <p>
-          Non-equilibrium inspired models, such as diffusion/flow-matching, are costly in terms of their inference time.
-	  Requiring significant acceleration to be even remotely viable in high energy particle physics data analyses.
-	  As such, advanced methodologies and mathematical approximations are required to enable statistical inference with
-	  such models.
+          Non-equilibrium inspired models, such as diffusion/flow-matching, are costly in terms of their inference 
+          time. Requiring significant acceleration to be even remotely viable in high energy particle physics data 
+          analyses. As such, NEEDLE leverages a combination of computational concurrency based methods paired with 
+          efficient mathematical methods for solving probability paths core to the continuous time non-equilibrium models - 
+          e.g. diffusion/flow-matching - in order to reduce the computational overhead and make diffusion/flow-matching 
+          models practically available.
         </p>
       </div>
       
       <div class="status-grid">
         <div class="status-card">
           <div class="status-header">
-            <div class="status-icon">
-	      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-		<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z" />
-	      </svg>
-	    </div>
-            <h3 class="status-title">Hardware Deployment</h3>
-          </div>
+            <div class="status-icon"> 
+	          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+	            	<path stroke-linecap="round" stroke-linejoin="round" d="M9.75 5a2.25 2.25 0 1 0 4.5 0a2.25 2.25 0 1 0-4.5 0M3.75 16a2.25 2.25 0 1 0 4.5 0a2.25 2.25 0 1 0-4.5 0M15.75 16a2.25 2.25 0 1 0 4.5 0a2.25 2.25 0 1 0-4.5 0M12 7.25 6 13.75M12 7.25 18 13.75" />
+	          </svg>	 
+            </div>
+               <h3 class="status-title">Graph-based Inference</h3>
+            </div>
           <div class="status-body">
-            <h4 style="font-family: var(--font-display); color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.1rem;">Target Platforms</h4>
-            <ul>
-              <li><strong>CPUs:</strong> Ultra-low latency (<1 μs) for L1 trigger</li>
-              <li><strong>GPUs:</strong> High throughput for HLT (High-Level Trigger)</li>
+            <h4 style="font-family: var(--font-display); color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.1rem;"> Pseudo-Surrogate</h4>
+            <p>
+              The NEEDLE CLI training DAG workflow enables users to train an ensemble of neural surrogates, 
+              representing k-folds, randomly seeded ensembles, systematics, and the unique estimators that comprise the 
+              statistical model of the data. This introduces the problem of how to combine the outputs of the neural surrogates 
+              into a single tensor that can be used as a single cohesive entity in any statistical analysis - i.e. a single likelihood 
+              value for each piece of data. To address this problem we build the idea of a <strong> Pseudo-Surrogate</strong>:
+            </p>
+            <ul style="padding-left: 2rem;">
+              <li><strong>Mixture of Neural Surrogates:</strong> Dynamically combine by DAG inversion many neural-surrogates into 
+                    a single neural network, or pseudo-surrogate, that can be handled via the needle-api as a single PyTorch model
+                    definition.</li>
+              <li><strong>Aggregation Methods:</strong> The edges of the DAG can be configured at runtime via the needle-api 
+                    to combine the sub-surrogates of the pseudo-surrogate as per the user request. For example, the k-folds 
+                    can be averaged, ensembles can be combined based on 'best-of'all-models', and estimators can be a weighted sum.</li>
             </ul>
-            
-            <h4 style="font-family: var(--font-display); color: var(--text-primary); margin: 1.5rem 0 0.5rem; font-size: 1.1rem;">Optimization Techniques</h4>
-            <ul>
-              <li>...</li>
-              <li>...</li>
-              <li>Pipeline parallelism for throughput</li>
-            </ul>
+            An illustration of this sub-surrogate combination by DAG inversion is given below, for three modes of inferencing:
+              <div style="margin: 1.5rem 0;">
+              <iframe
+                src="{{ '/assets/animations/Real-Time_Inference/dag_unrolling_interactive.html' | relative_url }}"
+                style="width: 100%; height: 720px; border: none; border-radius: 8px; display: block;"
+                loading="lazy"
+                title="Weight Tensor Memory Layout – Interactive Animation"
+              ></iframe>
+            </div>
           </div>
         </div>
         
         <div class="status-card">
           <div class="status-header">
             <div class="status-icon">
-	      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-		<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z" />
-	      </svg>	      
-	    </div>
-            <h3 class="status-title">Title</h3>
+             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z" />
+            </svg>
+    	      </div>
+            <h3 class="status-title">Accelerating Inference</h3>
           </div>
           <div class="status-body">
-            <h4 style="font-family: var(--font-display); color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.1rem;">Trigger Levels</h4>
-            <ul>
-              <li><strong>...:</strong> ...</li>
-              <li><strong>...:</strong> ...</li>
-            </ul>
+            <h4 style="font-family: var(--font-display); color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.1rem;">Inference Modes</h4>
+              <p>
+              The DAG based inferencing model allows for a single pseudo-surrogate to be defined in a programatic fashion, that users can interact with 
+              via a single API call. Unfortunately, the pseudo-surrogate model will scale linearly with the number of neural surrogates in 
+              the DAG, but also non-linearly with the size of each individual network. Consequently, to make the NEEDLE toolkit practically 
+              useful in every day data analyses, the NEEDLE API for graph inferencing offers three modes of acceleration:
+              </p>
+            <ul style="padding-left: 2rem;">
+              <ul>
+                <li><strong>Sequential:</strong> Treat each neural sub-surrogate in the DAG as a separate PyTorch model that executes in series a 'forward pass' on 
+                                                  an accelerator device orchestrated by the inverted DAG.</li>
+                <li><strong>Parallel:</strong> Treat each neural sub-surrogate in the DAG as a separate PyTorch model that executes as a CUDA stream across the 
+                                                Stream Monitors of NVidia GPUs. Multiple streams can run concurrently, and across multi-gpus at the same time.</li>
+                <li><strong>Vectorised:</strong> Batch all matrix operations across the neural sub-surrogates as single operations on the CUDA streams, 
+                                                 allowing for concurrent layer wise execution all sub-surrogates simultaneously.</li>
+              </ul>
+            </div>
+            <div style="margin: 1.5rem 0;">
+              <iframe
+                src="{{ '/assets/animations/Real-Time_Inference/weight_tensor_interactive.html' | relative_url }}"
+                style="width: 100%; height: 720px; border: none; border-radius: 8px; display: block;"
+                loading="lazy"
+                title="Weight Tensor Memory Layout – Interactive Animation"
+              ></iframe>
+            </div>
             
-            <h4 style="font-family: var(--font-display); color: var(--text-primary); margin: 1.5rem 0 0.5rem; font-size: 1.1rem;">Performance Metrics</h4>
+            <h4 style="font-family: var(--font-display); color: var(--text-primary); margin: 1.5rem 0 0.5rem; font-size: 1.1rem;">Performance</h4>
             <p>
-              ...
+              Preliminary benchmarks of inference runtime for each mode of operation. Select a network architecture to compare:
             </p>
-            <ul>
-              <li>...</li>
-              <li>...</li>
-            </ul>
+
+            <!-- Architecture tab bar -->
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;">
+              <button class="bench-arch-tab"
+                data-arch="nh05"
+                onclick="setBenchArch(this)"
+                style="padding: 0.35rem 0.9rem; border-radius: 6px; border: 1px solid var(--accent-primary, #1f6feb); background: var(--accent-primary, #1f6feb); color: #fff; cursor: pointer; font-size: 0.82rem; font-family: inherit;">
+                n<sub>h</sub> = 5
+              </button>
+              <button class="bench-arch-tab"
+                data-arch="nh10"
+                onclick="setBenchArch(this)"
+                style="padding: 0.35rem 0.9rem; border-radius: 6px; border: 1px solid var(--border-color, #30363d); background: var(--bg-card, #161b22); color: var(--text-primary, #e6edf3); cursor: pointer; font-size: 0.82rem; font-family: inherit;">
+                n<sub>h</sub> = 10
+              </button>
+              <button class="bench-arch-tab"
+                data-arch="nh15"
+                onclick="setBenchArch(this)"
+                style="padding: 0.35rem 0.9rem; border-radius: 6px; border: 1px solid var(--border-color, #30363d); background: var(--bg-card, #161b22); color: var(--text-primary, #e6edf3); cursor: pointer; font-size: 0.82rem; font-family: inherit;">
+                n<sub>h</sub> = 15
+              </button>
+              <button class="bench-arch-tab"
+                data-arch="hd064"
+                onclick="setBenchArch(this)"
+                style="padding: 0.35rem 0.9rem; border-radius: 6px; border: 1px solid var(--border-color, #30363d); background: var(--bg-card, #161b22); color: var(--text-primary, #e6edf3); cursor: pointer; font-size: 0.82rem; font-family: inherit;">
+                h<sub>d</sub> = 64
+              </button>
+              <button class="bench-arch-tab"
+                data-arch="hd128"
+                onclick="setBenchArch(this)"
+                style="padding: 0.35rem 0.9rem; border-radius: 6px; border: 1px solid var(--border-color, #30363d); background: var(--bg-card, #161b22); color: var(--text-primary, #e6edf3); cursor: pointer; font-size: 0.82rem; font-family: inherit;">
+                h<sub>d</sub> = 128
+              </button>
+            </div>
+
+            <p style="color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 0.4rem;">Runtime vs. network parameter count:</p>
+            <div style="margin-bottom: 1.5rem;">
+              <iframe id="bench-vs-params"
+                src="{{ '/assets/animations/Real-Time_Inference/strategy_comparison_nh05_vs_params.html' | relative_url }}"
+                style="width: 100%; height: 560px; border: none; border-radius: 8px; display: block;"
+                loading="lazy"
+                title="Runtime Benchmarks vs. Network Parameter Count"
+              ></iframe>
+            </div>
+
+            <p style="color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 0.4rem;">Runtime vs. number of networks in the DAG:</p>
+            <div>
+              <iframe id="bench-vs-networks"
+                src="{{ '/assets/animations/Real-Time_Inference/strategy_comparison_nh05_vs_networks.html' | relative_url }}"
+                style="width: 100%; height: 560px; border: none; border-radius: 8px; display: block;"
+                loading="lazy"
+                title="Runtime Benchmarks vs. Network Count"
+              ></iframe>
+            </div>
+
+            <script>
+            (function () {
+              var base = '{{ "/assets/animations/Real-Time_Inference/strategy_comparison_" | relative_url }}';
+              window.setBenchArch = function (btn) {
+                document.querySelectorAll('.bench-arch-tab').forEach(function (b) {
+                  b.style.background  = 'var(--bg-card, #161b22)';
+                  b.style.borderColor = 'var(--border-color, #30363d)';
+                  b.style.color       = 'var(--text-primary, #e6edf3)';
+                });
+                btn.style.background  = 'var(--accent-primary, #1f6feb)';
+                btn.style.borderColor = 'var(--accent-primary, #1f6feb)';
+                btn.style.color       = '#fff';
+                var arch = btn.getAttribute('data-arch');
+                document.getElementById('bench-vs-params').src   = base + arch + '_vs_params.html';
+                document.getElementById('bench-vs-networks').src = base + arch + '_vs_networks.html';
+              };
+            })();
+            </script>
+
+              <p>
+              The benchmarks demonstrate the key advantage of concurrent acceleration for the pseudo-surrogate. 
+              The sequential mode of operation, whilst simple, is the slowest methodology when 
+              running on a single NVidia Tesla V100 card, due to the linear complexity scaling in either the number of networks
+              in the DAG, or non-linear scaling in network parameters. The vectorized mode of operation offers substantial improvements in 
+              acceleration that substantially curbs the linear and non-linear scaling of the complexity problem as a function of 
+              network size (num. params) or the number of networks in the DAG, whilst using a single GPU. However, the parallel mode of 
+              operation offers scalability in terms of horizontal acceleration (across multiple GPUs), where in the above test 2 NVidia Tesla V100
+              GPUs were used to concurrently process the networks using individual CUDA streams. Whilst the most performant mode of operation
+              this comes at the expense of more computational resources. 
+              </p>
           </div>
         </div>
               

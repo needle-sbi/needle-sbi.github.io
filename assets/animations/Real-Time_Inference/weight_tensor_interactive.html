@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NEEDLE – Weight Tensor Memory Layout</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 24px 20px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .subtitle { font-size: 0.85rem; color: #8b949e; margin-bottom: 20px;
+               text-align: center; max-width: 720px; line-height: 1.6; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    width: 100%;
+    max-width: 1200px;
+  }
+  .panel {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+  .panel .desc {
+    font-size: 0.72rem; color: #8b949e;
+    margin-bottom: 10px; min-height: 3em; line-height: 1.5;
+  }
+  canvas { width: 100%; display: block; border-radius: 4px; }
+  .stats {
+    display: flex; justify-content: space-around;
+    margin-top: 10px; font-size: 0.73rem; color: #8b949e;
+  }
+  .stat-val { color: #e6edf3; font-weight: 700; }
+  .controls {
+    display: flex; gap: 10px; align-items: center;
+    margin: 14px 0; flex-wrap: wrap; justify-content: center;
+  }
+  button {
+    background: #21262d; border: 1px solid #30363d;
+    color: #c9d1d9; border-radius: 6px;
+    padding: 6px 16px; font-size: 0.82rem; cursor: pointer;
+  }
+  button:hover { background: #30363d; }
+  button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  label { font-size: 0.78rem; color: #8b949e; }
+  input[type=range] { width: 90px; accent-color: #1f6feb; cursor: pointer; }
+  .memory-legend {
+    display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;
+    margin-top: 14px; font-size: 0.75rem;
+  }
+  .ml-item { display: flex; align-items: center; gap: 5px; }
+  .ml-swatch { width: 18px; height: 10px; border-radius: 2px; }
+  /* ── Theme variables ──────────────────────────────────────── */
+  :root {
+    --bg:#0d1117; --bg-p:#161b22; --bdr:#30363d;
+    --tx:#e6edf3; --tx2:#8b949e; --bbg:#21262d;
+    --cvbg:#0d1117; --idle:#2c2c2c; --edge:#30363d; --dim:#8b949e; --grid:#1a2030;
+  }
+  body.light {
+    --bg:#f6f8fa; --bg-p:#ffffff; --bdr:#d0d7de;
+    --tx:#24292f; --tx2:#57606a; --bbg:#eaeef2;
+    --cvbg:#f6f8fa; --idle:#d0d7de; --edge:#d0d7de; --dim:#57606a; --grid:#e2e5e9;
+  }
+  body { background:var(--bg); color:var(--tx); }
+  h1   { color:var(--tx); }
+  .panel,.cell { background:var(--bg-p); border-color:var(--bdr); }
+  .subtitle,.desc,.step-info,.stat-bar,.eff-label,.progress-label,
+  label,.legend,.legend-item,.totals,.total-item,.col-hdr { color:var(--tx2); }
+  .stat-val { color:var(--tx); }
+  button:not(.active) { background:var(--bbg); border-color:var(--bdr); color:var(--tx); }
+  button:not(.active):hover { background:var(--bdr); }
+</style>
+</head>
+<body>
+<h1>NEEDLE – GPU Weight-Tensor Memory Layout</h1>
+<p class="subtitle">
+  Visualising how model weights W[H×H] reside in GPU VRAM for each execution strategy.
+  <br>Colour intensity = "hotness" (currently being read by the kernel).
+</p>
+
+<div class="controls">
+  <button id="btnPlay">▶ Play</button>
+  <button id="btnReset">↺ Reset</button>
+  <button id="btnTheme">☀ Light</button>
+  <label>Speed <input type="range" id="speedSlider" min="1" max="10" value="4" step="1"></label>
+</div>
+
+<div class="grid">
+  <div class="panel" id="panel-seq">
+    <h2 style="color:#964ECD">Sequential</h2>
+    <div class="desc">
+      One weight matrix loaded at a time.
+      Kernel cycles through fold₀→fold₅ serially.
+      <br>N×H² total parameter loads, one after another.
+    </div>
+    <canvas id="canvas-seq"></canvas>
+    <div class="stats">
+      <span>Model: <span class="stat-val" id="stat-seq-model">–</span></span>
+      <span>Kernel calls: <span class="stat-val" id="stat-seq-k">0</span></span>
+      <span>Memory re-use: <span class="stat-val">none</span></span>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-par">
+    <h2 style="color:#6fa8dc">Parallel (Streams)</h2>
+    <div class="desc">
+      Up to 8 weight matrices resident simultaneously (one per CUDA stream).
+      All fold kernels launch concurrently; GPU arbitrates scheduling.
+    </div>
+    <canvas id="canvas-par"></canvas>
+    <div class="stats">
+      <span>Active streams: <span class="stat-val" id="stat-par-s">0</span></span>
+      <span>Kernel calls: <span class="stat-val" id="stat-par-k">0</span></span>
+      <span>Concurrent: <span class="stat-val">yes</span></span>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-vec">
+    <h2 style="color:#36C182">Vectorized (vmap)</h2>
+    <div class="desc">
+      Parameters stacked into W_batched[N, H, H].
+      Single batched forward pass reads all N weight matrices simultaneously.
+    </div>
+    <canvas id="canvas-vec"></canvas>
+    <div class="stats">
+      <span>Batch: <span class="stat-val">N=6</span></span>
+      <span>Kernel calls: <span class="stat-val" id="stat-vec-k">0</span></span>
+      <span>Memory layout: <span class="stat-val">contiguous</span></span>
+    </div>
+  </div>
+</div>
+
+<div class="memory-legend">
+  <span class="ml-item">
+    <span class="ml-swatch" style="background:#2c2c2c;border:1px solid #444"></span>Idle / not loaded
+  </span>
+  <span class="ml-item">
+    <span class="ml-swatch" style="background:#4a3060"></span>Resident in VRAM
+  </span>
+  <span class="ml-item">
+    <span class="ml-swatch" style="background:#964ECD"></span>Active kernel read
+  </span>
+  <span class="ml-item">
+    <span class="ml-swatch" style="background:#f0c040"></span>Peak activity (hot)
+  </span>
+</div>
+
+<script>
+const N_FOLDS  = 6;
+const H_DIM    = 8;
+const N_STREAM = Math.min(8, N_FOLDS);
+const FOLD_COL = '#964ECD';
+
+// ── Canvas setup ───────────────────────────────────────────────────────
+const canvases = {
+  seq: document.getElementById('canvas-seq'),
+  par: document.getElementById('canvas-par'),
+  vec: document.getElementById('canvas-vec'),
+};
+Object.values(canvases).forEach(c => { c.height = 260; });
+
+// ── Animation state ────────────────────────────────────────────────────
+let phase      = 0;   // 0..1 per fold step; wraps
+let foldIdx    = 0;   // which fold is active (sequential)
+let kernelCalls = { seq: 0, par: 0, vec: 0 };
+let isPlaying  = false;
+let animId     = null;
+const TOTAL_TIME = N_FOLDS * 2; // full animation cycle
+
+// ── Helpers ────────────────────────────────────────────────────────────
+function hexToRgb(h) {
+  const r = parseInt(h.slice(1,3),16),
+        g = parseInt(h.slice(3,5),16),
+        b = parseInt(h.slice(5,7),16);
+  return [r,g,b];
+}
+function lerpColor(t, cold, hot) {
+  const c = hexToRgb(cold), h = hexToRgb(hot);
+  return `rgb(${Math.round(c[0]+(h[0]-c[0])*t)},${Math.round(c[1]+(h[1]-c[1])*t)},${Math.round(c[2]+(h[2]-c[2])*t)})`;
+}
+
+// ── SEQUENTIAL ─────────────────────────────────────────────────────────
+function drawSeq() {
+  const canvas = canvases.seq;
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = P().bg;
+  ctx.fillRect(0,0,W,H);
+
+  const cellW = (W - 20) / H_DIM;
+  const cellH = (H - 50) / H_DIM;
+  const offX  = 10, offY = 30;
+
+  // Title
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '11px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText(`fold_${foldIdx} — W[${H_DIM}×${H_DIM}]`, W/2, 16);
+
+  // Sweep direction: row by row, column by column
+  const sweepRow = Math.floor(phase * H_DIM);
+  const sweepCol = Math.floor((phase * H_DIM - sweepRow) * H_DIM);
+
+  for (let r = 0; r < H_DIM; r++) {
+    for (let c = 0; c < H_DIM; c++) {
+      let t;
+      if (r < sweepRow || (r === sweepRow && c <= sweepCol)) {
+        t = 0.6; // read recently
+      } else {
+        t = 0.0; // not yet
+      }
+      // Hot cell effect for current read
+      const isCurrent = (r === sweepRow && c === sweepCol);
+      const col = isCurrent ? '#f0c040' : lerpColor(t, P().idle, '#964ECD');
+      ctx.fillStyle = col;
+      ctx.fillRect(offX + c*cellW + 1, offY + r*cellH + 1, cellW-2, cellH-2);
+    }
+  }
+
+  // Label
+  const pct = Math.round(phase * 100);
+  ctx.fillStyle = '#8b949e';
+  ctx.font      = '11px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${pct}% of matrix read`, W/2, H - 8);
+
+  document.getElementById('stat-seq-model').textContent = `fold_${foldIdx} (${foldIdx+1}/${N_FOLDS})`;
+  document.getElementById('stat-seq-k').textContent = kernelCalls.seq;
+}
+
+// ── PARALLEL ────────────────────────────────────────────────────────────
+function drawPar() {
+  const canvas = canvases.par;
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = P().bg;
+  ctx.fillRect(0,0,W,H);
+
+  const cols    = N_FOLDS;
+  const gridW   = (W - 20) / cols;
+  const gridH_e = (H - 60);
+  const cellS   = Math.floor(Math.min(gridW / H_DIM, gridH_e / H_DIM) - 0.5);
+  const offY    = 28;
+
+  for (let fi = 0; fi < N_FOLDS; fi++) {
+    const ox = 10 + fi * gridW + (gridW - H_DIM * (cellS+1)) / 2;
+    const isActive = true; // all streams active in parallel
+    const localPhase = (phase + fi * 0.15) % 1.0; // slight offset per stream
+    const sweepRow = Math.floor(localPhase * H_DIM);
+    const sweepCol = Math.floor((localPhase * H_DIM - sweepRow) * H_DIM);
+
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '9px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(`F${fi}`, ox + H_DIM*(cellS+1)/2, offY - 5);
+
+    // Stream label
+    const si = fi % N_STREAM;
+    ctx.fillStyle = '#30363d';
+    ctx.font = '8px system-ui';
+    ctx.fillText(`s${si}`, ox + H_DIM*(cellS+1)/2, offY - 14);
+
+    for (let r = 0; r < H_DIM; r++) {
+      for (let c = 0; c < H_DIM; c++) {
+        let t;
+        if (r < sweepRow || (r === sweepRow && c <= sweepCol)) {
+          t = 0.55;
+        } else {
+          t = 0.12;
+        }
+        const isCur = (r === sweepRow && c === sweepCol);
+        const col = isCur ? '#6fe0dc' : lerpColor(t, P().idle, '#6fa8dc');
+        ctx.fillStyle = col;
+        ctx.fillRect(ox + c*(cellS+1) + 1, offY + r*(cellS+1) + 1, cellS, cellS);
+      }
+    }
+  }
+
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '11px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${N_FOLDS} matrices resident — all streams active`, W/2, H - 8);
+
+  document.getElementById('stat-par-s').textContent  = `${N_STREAM}/${N_STREAM}`;
+  document.getElementById('stat-par-k').textContent  = kernelCalls.par;
+}
+
+// ── VECTORIZED ─────────────────────────────────────────────────────────
+function drawVec() {
+  const canvas = canvases.vec;
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = P().bg;
+  ctx.fillRect(0,0,W,H);
+
+  // Draw stacked 3-D looking tensor slices
+  const sliceW  = Math.min(Math.floor((W - 80) / H_DIM), 18);
+  const sliceH  = sliceW;
+  const iso_dx  = Math.ceil(sliceW / 2.5);
+  const iso_dy  = Math.ceil(sliceH / 4);
+
+  const totalStackW = H_DIM * (sliceW+1) + (N_FOLDS-1)*iso_dx;
+  const totalStackH = H_DIM * (sliceH+1) + (N_FOLDS-1)*iso_dy;
+  const ox = (W - totalStackW) / 2;
+  const oy = (H - totalStackH) / 2 + 10;
+
+  // Global sweep direction: column sweep across all N slices simultaneously
+  const sweepGlobal = phase;  // 0..1 over full tensor
+  // sweepGlobal maps to column in H_DIM
+  const sweepCol = Math.floor(sweepGlobal * H_DIM);
+  const sweepRow = Math.floor((sweepGlobal * H_DIM - sweepCol) * H_DIM);
+
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '11px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText(`W_batched[N=${N_FOLDS}, H=${H_DIM}, H=${H_DIM}]  — single vmap kernel`, W/2, 16);
+
+  // Draw slices from back to front
+  for (let fi = N_FOLDS-1; fi >= 0; fi--) {
+    const dx = fi * iso_dx;
+    const dy = (N_FOLDS - 1 - fi) * iso_dy;
+
+    for (let r = 0; r < H_DIM; r++) {
+      for (let c = 0; c < H_DIM; c++) {
+        let t;
+        if (c < sweepCol || (c === sweepCol && r <= sweepRow)) {
+          t = 0.7;
+        } else {
+          t = 0.15;
+        }
+        const isCur = (c === sweepCol && r === sweepRow);
+        const col = isCur ? '#f0c040' : lerpColor(t, P().idle, '#36C182');
+        ctx.fillStyle = col;
+        ctx.fillRect(ox + dx + c*(sliceW+1), oy + dy + r*(sliceH+1), sliceW, sliceH);
+      }
+    }
+
+    // Slice border + label for first & last
+    if (fi === 0 || fi === N_FOLDS-1) {
+      ctx.strokeStyle = fi === 0 ? '#36C182' : '#2a4a34';
+      ctx.lineWidth   = 1;
+      ctx.strokeRect(ox + dx - 0.5, oy + dy - 0.5,
+                     H_DIM*(sliceW+1)+1, H_DIM*(sliceH+1)+1);
+      ctx.fillStyle   = '#555';
+      ctx.font        = '9px system-ui';
+      ctx.textAlign   = 'right';
+      ctx.fillText(`[f${fi}]`, ox + dx - 2, oy + dy + 8);
+    }
+  }
+
+  // Annotation for single kernel
+  const pct = Math.round(sweepGlobal * 100);
+  ctx.fillStyle  = '#8b949e';
+  ctx.font       = '11px system-ui';
+  ctx.textAlign  = 'center';
+  ctx.fillText(`vmap progress: ${pct}% — 1 kernel for all ${N_FOLDS} folds`, W/2, H - 8);
+
+  document.getElementById('stat-vec-k').textContent = kernelCalls.vec;
+}
+
+// ── Draw all ────────────────────────────────────────────────────────────
+function drawAll() {
+  drawSeq();
+  drawPar();
+  drawVec();
+}
+
+// ── Tick ────────────────────────────────────────────────────────────────
+let t = 0;
+function tick() {
+  const speed = parseFloat(document.getElementById('speedSlider').value);
+  t += speed * 0.003;
+
+  // Sequential: one fold per "cycle" (t goes from 0 to N_FOLDS)
+  foldIdx = Math.floor(t % N_FOLDS);
+  const foldPhase = (t % 1.0);
+  phase = foldPhase;
+
+  // Kernel calls
+  kernelCalls.seq = Math.floor(t) + 1;
+  kernelCalls.par = Math.ceil(N_FOLDS / N_STREAM);  // fixed
+  kernelCalls.vec = 1; // always 1 vmap call for folds
+
+  drawAll();
+
+  if (isPlaying) animId = requestAnimationFrame(tick);
+}
+
+function startPlay() {
+  if (isPlaying) return;
+  isPlaying = true;
+  document.getElementById('btnPlay').textContent = '⏸ Pause';
+  document.getElementById('btnPlay').classList.add('active');
+  animId = requestAnimationFrame(tick);
+}
+
+function stopPlay() {
+  isPlaying = false;
+  cancelAnimationFrame(animId);
+  document.getElementById('btnPlay').textContent = '▶ Play';
+  document.getElementById('btnPlay').classList.remove('active');
+}
+
+document.getElementById('btnPlay').addEventListener('click', () => {
+  isPlaying ? stopPlay() : startPlay();
+});
+document.getElementById('btnReset').addEventListener('click', () => {
+  stopPlay();
+  t = 0; phase = 0; foldIdx = 0;
+  kernelCalls = { seq: 0, par: 0, vec: 0 };
+  drawAll();
+});
+// ── Theme toggle ─────────────────────────────────────────────────────────
+function P() {
+  const cs = getComputedStyle(document.body);
+  const g  = n => cs.getPropertyValue(n).trim();
+  return { bg: g('--bg'), panel: g('--bg-p'), idle: g('--idle'),
+           edge: g('--edge'), dim: g('--dim'), grid: g('--grid') };
+}
+document.getElementById('btnTheme').addEventListener('click', () => {
+  const light = document.body.classList.toggle('light');
+  document.getElementById('btnTheme').textContent = light ? '🌙 Dark' : '☀ Light';
+});
+// Resize handling
+function resizeAll() {
+  Object.values(canvases).forEach(c => { c.width = c.offsetWidth || 320; });
+  drawAll();
+}
+new ResizeObserver(resizeAll).observe(document.querySelector('.grid'));
+window.addEventListener('load', resizeAll);
+</script>
+</body>
+</html>

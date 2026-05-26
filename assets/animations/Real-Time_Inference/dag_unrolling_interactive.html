@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NEEDLE – DAG Execution Unrolling</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 20px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #e6edf3; }
+  .subtitle { font-size: 0.85rem; color: #8b949e; margin-bottom: 18px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    width: 100%;
+    max-width: 1380px;
+  }
+  .panel {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .panel h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .panel .desc {
+    font-size: 0.7rem;
+    text-align: center;
+    color: #8b949e;
+    margin-bottom: 10px;
+    min-height: 2.8em;
+    line-height: 1.4;
+  }
+  .step-info {
+    font-size: 0.72rem;
+    text-align: center;
+    color: #8b949e;
+    margin-top: 6px;
+    min-height: 1.5em;
+  }
+  .stat-bar {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    font-size: 0.70rem;
+    color: #8b949e;
+  }
+  .stat-val { color: #e6edf3; font-weight: 600; }
+
+  svg { width: 100%; height: auto; display: block; }
+  .node-circle { transition: fill 0.2s, stroke 0.2s; cursor: default; }
+  .node-label { font-size: 11px; font-weight: 600; text-anchor: middle;
+                 dominant-baseline: central; pointer-events: none; }
+  .edge-path { fill: none; stroke: #30363d; stroke-width: 1.5;
+                marker-end: url(#arrowhead); }
+
+  /* controls */
+  .controls {
+    display: flex; align-items: center; gap: 10px;
+    margin: 14px 0 8px;
+    flex-wrap: wrap; justify-content: center;
+  }
+  button {
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  button:hover { background: #30363d; }
+  button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  label { font-size: 0.78rem; color: #8b949e; }
+  input[type=range] { width: 120px; cursor: pointer; accent-color: #1f6feb; }
+  .progress-wrap {
+    width: 100%; max-width: 1380px;
+    height: 6px;
+    background: #21262d;
+    border-radius: 3px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #1f6feb, #964ECD);
+    border-radius: 3px;
+    transition: width 0.15s ease;
+  }
+  .legend {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 14px;
+    font-size: 0.75rem;
+    color: #8b949e;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+  /* Timing bars under each panel */
+  .timing-row {
+    display: flex; gap: 6px; margin-top: 8px; height: 10px;
+  }
+  .timing-seg {
+    border-radius: 2px;
+    transition: opacity 0.3s;
+    opacity: 0.4;
+    height: 100%;
+  }
+  .timing-seg.done { opacity: 1; }
+  /* ── Theme variables ──────────────────────────────────────── */
+  :root {
+    --bg:#0d1117; --bg-p:#161b22; --bdr:#30363d;
+    --tx:#e6edf3; --tx2:#8b949e; --bbg:#21262d;
+    --cvbg:#0d1117; --idle:#2c2c2c; --edge:#30363d; --dim:#8b949e; --grid:#1a2030;
+  }
+  body.light {
+    --bg:#f6f8fa; --bg-p:#ffffff; --bdr:#d0d7de;
+    --tx:#24292f; --tx2:#57606a; --bbg:#eaeef2;
+    --cvbg:#f6f8fa; --idle:#d0d7de; --edge:#d0d7de; --dim:#57606a; --grid:#e2e5e9;
+  }
+  body { background:var(--bg); color:var(--tx); }
+  h1   { color:var(--tx); }
+  .panel,.cell { background:var(--bg-p); border-color:var(--bdr); }
+  .subtitle,.desc,.step-info,.stat-bar,.eff-label,.progress-label,
+  label,.legend,.legend-item,.totals,.total-item,.col-hdr { color:var(--tx2); }
+  .stat-val { color:var(--tx); }
+  button:not(.active) { background:var(--bbg); border-color:var(--bdr); color:var(--tx); }
+  button:not(.active):hover { background:var(--bdr); }
+  .tooltip { background:var(--bbg) !important; border-color:var(--bdr) !important;
+              color:var(--tx) !important; }
+  .row-hdr { background:var(--bg-p) !important; border-color:var(--bdr) !important; }
+</style>
+</head>
+<body>
+<h1>NEEDLE DAG — Execution Strategy Unrolling</h1>
+<p class="subtitle">Same DAG topology executed three ways. Click <strong>Play</strong> or Step through to watch nodes execute.</p>
+
+<div class="controls">
+  <button id="btnPlay">▶ Play</button>
+  <button id="btnStep">Step →</button>
+  <button id="btnReset">↺ Reset</button>
+  <button id="btnTheme">☀ Light</button>
+  <label>Speed <input type="range" id="speedSlider" min="100" max="2000" value="700" step="100"></label>
+  <span id="globalStep" style="font-size:0.78rem;color:#8b949e;">Step 0</span>
+</div>
+
+<div class="grid" id="mainGrid"></div>
+
+<div class="progress-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+
+<div class="legend">
+  <span class="legend-item"><span class="legend-dot" style="background:#555"></span>Unexecuted</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f0c040"></span>In-progress</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#964ECD"></span>Fold</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#6fa8dc"></span>Ensemble</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#36C182"></span>Systematic</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#FEE715"></span>Estimator</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#FF6B6B"></span>Root</span>
+</div>
+
+<script>
+// ── Data injected from Python ──────────────────────────────────────────────
+const NODES    = {"fold_A0": {"type": "fold", "label": "F\u2080\u2070"}, "fold_A1": {"type": "fold", "label": "F\u2080\u00b9"}, "fold_A2": {"type": "fold", "label": "F\u2080\u00b2"}, "fold_B0": {"type": "fold", "label": "F\u2081\u2070"}, "fold_B1": {"type": "fold", "label": "F\u2081\u00b9"}, "fold_B2": {"type": "fold", "label": "F\u2081\u00b2"}, "ens_0": {"type": "ensemble", "label": "Ens\u2080"}, "ens_1": {"type": "ensemble", "label": "Ens\u2081"}, "sys_nom": {"type": "systematic", "label": "Sys"}, "est_A": {"type": "estimator", "label": "Est"}, "root": {"type": "main", "label": "Root"}};
+const EDGES    = [{"sources": ["fold_A0", "fold_A1", "fold_A2"], "target": "ens_0", "method": "MEAN"}, {"sources": ["fold_B0", "fold_B1", "fold_B2"], "target": "ens_1", "method": "MEAN"}, {"sources": ["ens_0", "ens_1"], "target": "sys_nom", "method": "MEAN"}, {"sources": ["sys_nom"], "target": "est_A", "method": "MEAN"}, {"sources": ["est_A"], "target": "root", "method": "MEAN"}];
+const LAYOUT   = {"fold_A0": [70, 390], "fold_A1": [170, 390], "fold_A2": [270, 390], "fold_B0": [410, 390], "fold_B1": [510, 390], "fold_B2": [610, 390], "ens_0": [170, 270], "ens_1": [510, 270], "sys_nom": [340, 170], "est_A": [340, 90], "root": [340, 20]};
+const COLOURS  = {"fold": "#964ECD", "ensemble": "#6fa8dc", "systematic": "#36C182", "estimator": "#FEE715", "main": "#FF6B6B"};
+const PLANS    = {
+  sequential:  [{"nodes": ["fold_A0"], "vmap": false, "label": "fold_A0"}, {"nodes": ["fold_A1"], "vmap": false, "label": "fold_A1"}, {"nodes": ["fold_A2"], "vmap": false, "label": "fold_A2"}, {"nodes": ["fold_B0"], "vmap": false, "label": "fold_B0"}, {"nodes": ["fold_B1"], "vmap": false, "label": "fold_B1"}, {"nodes": ["fold_B2"], "vmap": false, "label": "fold_B2"}, {"nodes": ["ens_0"], "vmap": false, "label": "ens_0"}, {"nodes": ["ens_1"], "vmap": false, "label": "ens_1"}, {"nodes": ["sys_nom"], "vmap": false, "label": "sys_nom"}, {"nodes": ["est_A"], "vmap": false, "label": "est_A"}, {"nodes": ["root"], "vmap": false, "label": "root"}],
+  parallel:    [{"nodes": ["fold_A0", "fold_A1", "fold_A2", "fold_B0", "fold_B1", "fold_B2"], "vmap": false, "label": "level 0"}, {"nodes": ["ens_0", "ens_1"], "vmap": false, "label": "level 1"}, {"nodes": ["sys_nom"], "vmap": false, "label": "level 2"}, {"nodes": ["est_A"], "vmap": false, "label": "level 3"}, {"nodes": ["root"], "vmap": false, "label": "level 4"}],
+  vectorized:  [{"nodes": ["fold_A0", "fold_A1", "fold_A2", "fold_B0", "fold_B1", "fold_B2"], "vmap": true, "label": "vmap forward \u00d76"}, {"nodes": ["ens_0", "ens_1"], "vmap": false, "label": "level 1"}, {"nodes": ["sys_nom"], "vmap": false, "label": "level 2"}, {"nodes": ["est_A"], "vmap": false, "label": "level 3"}, {"nodes": ["root"], "vmap": false, "label": "level 4"}],
+};
+
+// ── Simulated timing weights (relative units) ────────────────────────────
+const STEP_COST = (step, strategy) => {
+  const nFolds = step.nodes.filter(n => NODES[n]?.type === 'fold').length;
+  const nOther = step.nodes.length - nFolds;
+  if (strategy === 'sequential') return nFolds * 1.0 + nOther * 0.25;
+  if (strategy === 'parallel')   return nFolds > 0 ? 1.0 : 0.25;   // parallel launch
+  // vectorized
+  if (step.vmap) return 0.55;  // single batched kernel
+  return 0.25;
+};
+
+const STRATEGY_META = [
+  {
+    key: 'sequential', title: 'Sequential',
+    color: '#964ECD',
+    desc: 'Each fold model runs one at a time (for-loop). N serial GPU kernel launches. Simple but slow.',
+  },
+  {
+    key: 'parallel', title: 'Parallel (Streams)',
+    color: '#6fa8dc',
+    desc: 'BFS-level batching with CUDA streams. All folds at same level run concurrently on separate streams.',
+  },
+  {
+    key: 'vectorized', title: 'Vectorized (vmap)',
+    color: '#36C182',
+    desc: 'Folds stacked into W_batched[N, H, H].  torch.func.vmap dispatches a single batched kernel.',
+  },
+];
+
+// ── State ─────────────────────────────────────────────────────────────────
+let currentStep = 0;
+let isPlaying   = false;
+let timer       = null;
+const MAX_STEP  = Math.max(...STRATEGY_META.map(m => PLANS[m.key].length));
+
+// Index of which plan-step we're on for each strategy
+const stratStep = { sequential: 0, parallel: 0, vectorized: 0 };
+
+// ── Build DOM ─────────────────────────────────────────────────────────────
+const grid = document.getElementById('mainGrid');
+
+STRATEGY_META.forEach(meta => {
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  panel.id = 'panel-' + meta.key;
+
+  const totalTime = PLANS[meta.key].reduce((s, st) => s + STEP_COST(st, meta.key), 0);
+  const nSteps    = PLANS[meta.key].length;
+  const nNodes    = Object.keys(NODES).length;
+  const nFolds    = Object.values(NODES).filter(n => n.type === 'fold').length;
+
+  panel.innerHTML = `
+    <h2 style="color:${meta.color}">${meta.title}</h2>
+    <div class="desc">${meta.desc}</div>
+    <svg id="svg-${meta.key}" viewBox="0 0 680 430" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="step-info" id="info-${meta.key}">Ready</div>
+    <div class="stat-bar">
+      <span>Steps: <span class="stat-val" id="steps-${meta.key}">0/${nSteps}</span></span>
+      <span>⏱ Rel time: <span class="stat-val" id="time-${meta.key}">0.0</span> / ${totalTime.toFixed(1)}</span>
+      <span>GPU launches: <span class="stat-val" id="launches-${meta.key}">0</span></span>
+    </div>
+  `;
+  grid.appendChild(panel);
+
+  buildSVG(meta.key);
+});
+
+// ── SVG construction ──────────────────────────────────────────────────────
+function buildSVG(key) {
+  const svg = document.getElementById('svg-' + key);
+  svg.innerHTML = '';
+
+  // Defs: arrow marker
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML = `
+    <marker id="arr-${key}" markerWidth="8" markerHeight="8"
+            refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L7,3 z" fill="${P().edge}" />
+    </marker>`;
+  svg.appendChild(defs);
+
+  const R = 22; // node radius
+
+  // Edges
+  EDGES.forEach(e => {
+    e.sources.forEach(src => {
+      const [x1,y1] = LAYOUT[src]   || [0,0];
+      const [x2,y2] = LAYOUT[e.target] || [0,0];
+      const g = buildEdge(x1,y1,x2,y2,key,src,e.target);
+      svg.appendChild(g);
+    });
+  });
+
+  // Nodes
+  Object.entries(NODES).forEach(([id, nd]) => {
+    const [cx, cy] = LAYOUT[id] || [0,0];
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.id = `g-${key}-${id}`;
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx', cx);
+    circle.setAttribute('cy', cy);
+    circle.setAttribute('r',  R);
+    circle.setAttribute('fill', P().idle);
+    circle.setAttribute('stroke', P().edge);
+    circle.setAttribute('stroke-width', '2');
+    circle.className.baseVal = 'node-circle';
+    circle.id = `c-${key}-${id}`;
+
+    const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x', cx);
+    txt.setAttribute('y', cy);
+    txt.textContent = nd.label || id;
+    txt.className.baseVal = 'node-label';
+    txt.setAttribute('fill', P().dim);
+    txt.id = `t-${key}-${id}`;
+
+    g.appendChild(circle);
+    g.appendChild(txt);
+    svg.appendChild(g);
+  });
+}
+
+function buildEdge(x1,y1,x2,y2,key,src,tgt){
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  // Offset end point slightly for arrowhead
+  const dx = x2-x1, dy = y2-y1;
+  const len = Math.sqrt(dx*dx+dy*dy)||1;
+  const ex = x2 - dx/len*24, ey = y2 - dy/len*24;
+  const sx = x1 + dx/len*24, sy = y1 + dy/len*24;
+
+  const midx = (sx+ex)/2, midy = (sy+ey)/2;
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.setAttribute('d', `M${sx},${sy} Q${midx},${midy} ${ex},${ey}`);
+  path.setAttribute('stroke', P().edge);
+  path.setAttribute('stroke-width', '1.5');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('marker-end', `url(#arr-${key})`);
+  path.id = `e-${key}-${src}-${tgt}`;
+  g.appendChild(path);
+  return g;
+}
+
+// ── Rendering state per step ───────────────────────────────────────────────
+const doneNodes = { sequential: new Set(), parallel: new Set(), vectorized: new Set() };
+const accTime   = { sequential: 0, parallel: 0, vectorized: 0 };
+const launches  = { sequential: 0, parallel: 0, vectorized: 0 };
+
+function renderStep(key, stepIdx) {
+  const plan  = PLANS[key];
+  const total = plan.length;
+  if (stepIdx < 0 || stepIdx > total) return;
+
+  const infoEl    = document.getElementById('info-' + key);
+  const stepsEl   = document.getElementById('steps-' + key);
+  const timeEl    = document.getElementById('time-' + key);
+  const launchEl  = document.getElementById('launches-' + key);
+
+  if (stepIdx === 0) {
+    // Reset
+    doneNodes[key].clear();
+    accTime[key]  = 0;
+    launches[key] = 0;
+    Object.keys(NODES).forEach(id => setNodeState(key, id, 'idle'));
+    infoEl.textContent   = 'Ready – press Play or Step →';
+    stepsEl.textContent  = `0/${total}`;
+    timeEl.textContent   = '0.0';
+    launchEl.textContent = '0';
+    return;
+  }
+
+  const step = plan[stepIdx - 1];
+  const cost = STEP_COST(step, key);
+  accTime[key]  += cost;
+  launches[key] += step.vmap ? 1 : step.nodes.length;
+
+  // Mark previously done nodes
+  doneNodes[key].forEach(id => setNodeState(key, id, 'done'));
+
+  // Flash current step's nodes
+  step.nodes.forEach(id => {
+    setNodeState(key, id, 'active');
+  });
+
+  setTimeout(() => {
+    step.nodes.forEach(id => {
+      doneNodes[key].add(id);
+      setNodeState(key, id, 'done');
+    });
+  }, 200);
+
+  const labelText = step.label || step.nodes.join(', ');
+  const vmapTag   = step.vmap ? ' <span style="color:#36C182;font-weight:700">[vmap]</span>' : '';
+  infoEl.innerHTML  = `Step ${stepIdx}/${total} — <em>${labelText}</em>${vmapTag}`;
+  stepsEl.textContent  = `${stepIdx}/${total}`;
+  timeEl.textContent   = accTime[key].toFixed(1);
+  launchEl.textContent = launches[key];
+}
+
+function setNodeState(key, id, state) {
+  const circle = document.getElementById(`c-${key}-${id}`);
+  const txt    = document.getElementById(`t-${key}-${id}`);
+  if (!circle) return;
+  const type = NODES[id]?.type || 'fold';
+  if (state === 'idle') {
+    circle.setAttribute('fill',   P().idle);
+    circle.setAttribute('stroke', P().edge);
+    txt.setAttribute('fill', P().dim);
+  } else if (state === 'active') {
+    circle.setAttribute('fill',   '#f0c040');
+    circle.setAttribute('stroke', '#ffffff');
+    txt.setAttribute('fill', '#000');
+  } else { // done
+    const col = COLOURS[type] || '#888';
+    circle.setAttribute('fill',   col);
+    circle.setAttribute('stroke', '#fff');
+    txt.setAttribute('fill', type === 'estimator' ? '#222' : '#fff');
+  }
+}
+
+// ── Global play logic ──────────────────────────────────────────────────────
+function resetAll() {
+  currentStep = 0;
+  STRATEGY_META.forEach(m => { stratStep[m.key] = 0; renderStep(m.key, 0); });
+  document.getElementById('globalStep').textContent = 'Step 0';
+  document.getElementById('progressBar').style.width = '0%';
+  stopPlay();
+}
+
+function advanceStep() {
+  // Advance each strategy by one of *their* steps if they still have any
+  let anyAdvanced = false;
+  STRATEGY_META.forEach(m => {
+    const total = PLANS[m.key].length;
+    if (stratStep[m.key] < total) {
+      stratStep[m.key]++;
+      renderStep(m.key, stratStep[m.key]);
+      anyAdvanced = true;
+    }
+  });
+
+  const maxTotal = MAX_STEP;
+  currentStep = Math.max(...STRATEGY_META.map(m => stratStep[m.key]));
+  document.getElementById('globalStep').textContent = `Step ${currentStep}`;
+
+  // Use the max plan length for progress
+  const allDone = STRATEGY_META.every(m => stratStep[m.key] >= PLANS[m.key].length);
+  const pct = allDone ? 100 : (currentStep / maxTotal * 100);
+  document.getElementById('progressBar').style.width = pct + '%';
+
+  if (allDone) stopPlay();
+  return anyAdvanced;
+}
+
+function startPlay() {
+  if (isPlaying) return;
+  isPlaying = true;
+  document.getElementById('btnPlay').textContent = '⏸ Pause';
+  document.getElementById('btnPlay').classList.add('active');
+  function tick() {
+    const advanced = advanceStep();
+    if (advanced && isPlaying) {
+      const speed = parseInt(document.getElementById('speedSlider').value);
+      timer = setTimeout(tick, speed);
+    } else {
+      stopPlay();
+    }
+  }
+  tick();
+}
+
+function stopPlay() {
+  isPlaying = false;
+  clearTimeout(timer);
+  document.getElementById('btnPlay').textContent = '▶ Play';
+  document.getElementById('btnPlay').classList.remove('active');
+}
+
+document.getElementById('btnPlay').addEventListener('click', () => {
+  isPlaying ? stopPlay() : startPlay();
+});
+document.getElementById('btnStep').addEventListener('click', () => {
+  stopPlay();
+  advanceStep();
+});
+document.getElementById('btnReset').addEventListener('click', resetAll);
+
+// Initialise
+resetAll();
+// ── Theme toggle ─────────────────────────────────────────────────────────
+function P() {
+  const cs = getComputedStyle(document.body);
+  const g  = n => cs.getPropertyValue(n).trim();
+  return { bg: g('--bg'), panel: g('--bg-p'), idle: g('--idle'),
+           edge: g('--edge'), dim: g('--dim'), grid: g('--grid') };
+}
+document.getElementById('btnTheme').addEventListener('click', () => {
+  const light = document.body.classList.toggle('light');
+  document.getElementById('btnTheme').textContent = light ? '🌙 Dark' : '☀ Light';
+});
+</script>
+</body>
+</html>
