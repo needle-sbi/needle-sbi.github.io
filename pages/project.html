@@ -15,15 +15,15 @@ permalink: /project/
       <div class="project-intro">
         <h3 style="font-family: var(--font-display); color: var(--accent-primary); margin-bottom: 1rem;">Mission</h3>
         <p>
-          The NEEDLE (NEural-basEd Diffusion Likelihood Estimations) projects aims to develop a new
-	  simulation-based inference toolkit, that utilises thermo-equilibrium inspired models, such
-	  as diffusion and flow matching, for the high energy particle physics community.
+          The NEEDLE (NEural-basEd Diffusion Likelihood Estimations) project is a toolkit for Neural Simulation Based Inference methods.
+          Its purpose is to be the training and inference engine that accelerates the deployment of existing and upcoming NBSI tools.
+          It takes care of model orchestration, config management, and submission to batch systems for the High Energy Physics community.
         </p>
         <p>
           Our work focuses on three core pillars: developing new neural-based surrogates, developing new
 	  likelihood/posterior inference methodologies within the diffusion/flow-matching domain, and
 	  creating an efficient data ingestion and orchestration system for highly parallelisable HTC/HPC
-	  systems. The work herein is at present, the collaboration of particle physics groups
+	  systems. The work herein is the collaborative effort of particle physics groups
 	  within the ALICE, ATLAS, and CMS Collaborations at the European Center for Nuclear Research (CERN). 
         </p>
       </div>
@@ -96,8 +96,6 @@ permalink: /project/
             
             <h4 style="font-family: var(--font-display); color: var(--text-primary); margin: 1.5rem 0 0.5rem; font-size: 1.1rem;">Key Features</h4>
             <ul>
-              <li><strong>Dynamic Scaling:</strong> Auto-scaling workers based on data chunk volume</li>
-              <li><strong>Resource Management:</strong> Horizontal GPU/CPU allocation</li>
               <li><strong>Checkpointing:</strong> Automatic recovery from failures, unfinished Tasks are resubmitted</li>
               <li><strong>Versioning:</strong> Full ML training tracking and experimentation for reproducibility with the MLflow library</li>
             </ul>

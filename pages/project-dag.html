@@ -18,8 +18,7 @@ permalink: /project/dag/
       <div class="project-intro">
         <h3 style="font-family: var(--font-display); color: var(--accent-primary); margin-bottom: 1rem;">Overview</h3>
         <p>
-          Our system uses Directed Acyclic Graphs (DAGs) to represent complex ML workflows, enabling parallel execution, and dependency management.
-	  Each node in the DAG represents a discrete computational task (data loading, preprocessing, training, evaluation), with edges defining data dependencies.
+          Our system uses Directed Acyclic Graphs (DAGs) to represent complex ML workflows, enabling parallel execution and dependency management.
         </p>
       </div>
       
@@ -37,18 +36,17 @@ permalink: /project/dag/
           <div class="status-body">
             <h4 style="font-family: var(--font-display); color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.1rem;">Core Components</h4>
             <ul>
-              <li><strong>Task Scheduler:</strong> ...</li>
-              <li><strong>Dependency Manager:</strong> ...</li>
-              <li><strong>Resource Allocator:</strong> ...</li>
-              <li><strong>State Manager:</strong> ...</li>
+              <li><strong>Task Scheduler:</strong> The DAG Workflow is encoded by the dependency tree of luigi Tasks.</li>
+              <li><strong>Batch Submission:</strong> LAW (Luigi Analysis Workflow) is a wrapper for luigi that expands its functionality to batch submission in HEP using htcondor and slurm</li>
+              <li><strong>Dynamic Task Management:</strong> Changing the number of Tasks at each level of the graph is handled by a .yaml config manager </li>
             </ul>
             
             <h4 style="font-family: var(--font-display); color: var(--text-primary); margin: 1.5rem 0 0.5rem; font-size: 1.1rem;">Key Features</h4>
             <ul>
               <li>Automatic parallelization of independent tasks</li>
-              <li>Intelligent caching of intermediate results for versioning</li>
+              <li>Checkpointing of intermediate results for identical trainings</li>
               <li>Support for heterogeneous computing (CPU/GPU)</li>
-	      <li>Dynamic resource optimisation</li>
+	            <li>Dynamic resource optimisation</li>
             </ul>
           </div>
         </div>
@@ -56,55 +54,24 @@ permalink: /project/dag/
         <div class="status-card">
           <div class="status-header">
             <div class="status-icon">
-	      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-		<path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z" />
-		<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-	      </svg>
-	    </div>
-            <h3 class="status-title">Implementation Details</h3>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+	          </div>
+            <h3 class="status-title">Data Ingestion</h3>
           </div>
           <div class="status-body">
-            <h4 style="font-family: var(--font-display); color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.1rem;">Technology Stack</h4>
-            <ul>
-              <li><strong>Core Engine:</strong> DASK library for data ingestion with parquet data format for DAG based compute operation workflows</li>
-              <li><strong>Distribution:</strong> Luigi orchestration via LAW</li>
-              <li><strong>Storage:</strong> Parquet data format, and PyTorch/ONNX model storage</li>
-              <li><strong>Monitoring:</strong> ...</li>
-            </ul>
-            
-            <h4 style="font-family: var(--font-display); color: var(--text-primary); margin: 1.5rem 0 0.5rem; font-size: 1.1rem;">Workflow Definition</h4>
-            <p>
-              Workflows are defined using a ..., allowing the system to automatically handle task parallelization, dependencies, and resource management.
+            <p>NEEDLE provides a set of ready-to-use torch dataloaders with different levels of complexity, depending on the computational
+              demand of the training. 
             </p>
-          </div>
-        </div>
-        
-        <div class="status-card">
-          <div class="status-header">
-            <div class="status-icon">
-	      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-		<path stroke-linecap="round" stroke-linejoin="round" d="M10 3a2 2 0 1 0 4 0a2 2 0 1 0-4 0M4 11a2 2 0 1 0 4 0a2 2 0 1 0-4 0M16 11a2 2 0 1 0 4 0a2 2 0 1 0-4 0M10 19a2 2 0 1 0 4 0a2 2 0 1 0-4 0M12 5 6 9M12 5 18 9M6 13 12 17M18 13 12 17" />
-	      </svg>
-	    </div>
-            <h3 class="status-title">Performance & Scalability</h3>
-          </div>
-          <div class="status-body">
-            <h4 style="font-family: var(--font-display); color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.1rem;">Benchmark Results</h4>
-            <ul>
-              <li><strong>Throughput:</strong> ...</li>
-              <li><strong>Scaling:</strong> ...</li>
-              <li><strong>Efficiency:</strong> ...</li>
-              <li><strong>Latency:</strong> ...</li>
-            </ul>
-            
-            <h4 style="font-family: var(--font-display); color: var(--text-primary); margin: 1.5rem 0 0.5rem; font-size: 1.1rem;">Resource Optimization</h4>
-            <p>
-	      ...
-            </p>
+            <p>The base version loads data eagerly from parquet or root files in awkward arrays and returns a torch base dataloader with
+              all data loaded in memory. The delayed version harnesses dask to lazily load the shape of the array, allowing for read-on-demand. This 
+              is especially useful in cases where the memory overhead is a critical limitation, in which case this dataloader caps the maximum concurrent
+              memory usage. Further acceleration is provided by multiprocessing with either dask (IO) or torch (compute).</p>
           </div>
         </div>
       </div>
-      
       <div style="text-align: center; margin-top: 3rem;">
         <a href="{{ '/project' | relative_url }}" class="btn btn-secondary">Back to Project Overview</a>
       </div>
