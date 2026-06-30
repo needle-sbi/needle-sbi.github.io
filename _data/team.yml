@@ -26,12 +26,14 @@
 #  affiliation: "KIT | ..."
 #  image: "https://via.placeholder.com/300x300/ff6b35/ffffff?text=JK"
 #
-#- name: "Dr. Levi Evans"
-#  title: "..."
-#  role: "..."
-#  description: ".."
-#  affiliation: "DESY | ATLAS Collaboration"
-#  image: "https://via.placeholder.com/300x300/58a6ff/ffffff?text=EV"
+
+- name: "Levi Evans"
+  title: "Post-Doctoral Researcher"
+  role: "Method Development"
+  description: >
+    Member of the Machine Learning and Software Development Team. Specialising in generative model development and applications.
+  affiliation: "DESY | ATLAS Collaboration"
+  image: "./assets/images/team/levi.jpg"
 
 - name: "Kylian Schmidt"
   title: "PhD Student"
