@@ -86,3 +86,11 @@
   affiliation: "KIT | CMS Collaboration"
   image: "assets/images/team/nicolo.png"
 
+- name: "Peter Steinbach"
+  title: ""
+  role: ""
+  description: >
+    Put your description here... 
+  affiliation: ""
+  image: "assets/images/team/"
+
